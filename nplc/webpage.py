@@ -10,8 +10,8 @@ def get_scores():
         red_status = nplc.get_hub_status("red")
         blue_status = nplc.get_hub_status("blue")
         
-        red_fuel = red_status.get("count", "?")
-        blue_fuel = blue_status.get("count", "?")
+        red_fuel = red_status.get("count", 0)
+        blue_fuel = blue_status.get("count", 0)
         total_fuel = red_fuel + blue_fuel
 
         return jsonify({
@@ -33,29 +33,47 @@ def home():
             body {
                 margin: 0;
                 height: 100vh;
-                background: #00ff66;
+                background-color: #00ff22; /* full green background */
+                font-family: Arial, sans-serif;
                 display: flex;
                 flex-direction: column;
+                justify-content: flex-end; /* push HUD to bottom */
+                color: #fff;
+            }
+
+            /* HUD container pinned at bottom */
+            .hud {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                width: 100%;
+                padding: 10px 20px;
+                box-sizing: border-box;
+            }
+
+            .corner-box, .middle-box {
+                width: 200px;
+                height: 100px;
+                display: flex;
                 justify-content: center;
                 align-items: center;
-                font-family: Arial, sans-serif;
-                color: #000;
+                font-size: 28px;
+                font-weight: bold;
+                border-radius: 10px;
+                color: #fff;
             }
-            h1 {
-                font-size: 48px;
-                margin: 10px 0;
-            }
-            p {
-                font-size: 24px;
-                margin: 5px 0;
-            }
+
+            .red-box { background-color: rgba(255,0,0,0.8); }
+            .blue-box { background-color: rgba(0,0,255,0.8); }
+            .middle-box { background-color: rgba(158, 3, 255, 0.6); width: 200px; }
         </style>
     </head>
     <body>
-        <h1>FRC Match Scores</h1>
-        <p id="red-score">Red Alliance Fuel: 0</p>
-        <p id="blue-score">Blue Alliance Fuel: 0</p>
-        <p id="total-score">Total Fuel: 0</p>
+        <div class="hud">
+            <div class="corner-box red-box" id="red-score">0</div>
+            <div class="middle-box" id="total-score">0</div>
+            <div class="corner-box blue-box" id="blue-score">0</div>
+        </div>
 
         <script>
             async function updateScores() {
@@ -66,18 +84,15 @@ def home():
                         console.error(data.error);
                         return;
                     }
-                    document.getElementById('red-score').textContent = 
-                        `Red Alliance Fuel: ${data.red_fuel}`;
-                    document.getElementById('blue-score').textContent = 
-                        `Blue Alliance Fuel: ${data.blue_fuel}`;
-                    document.getElementById('total-score').textContent = 
-                        `Total Fuel: ${data.total_fuel}`;
+                    document.getElementById('red-score').textContent = data.red_fuel;
+                    document.getElementById('blue-score').textContent = data.blue_fuel;
+                    document.getElementById('total-score').textContent = data.total_fuel;
                 } catch (err) {
                     console.error('Error fetching scores', err);
                 }
             }
 
-            setInterval(updateScores, 500);
+            setInterval(updateScores, 800);
             updateScores();
         </script>
     </body>
