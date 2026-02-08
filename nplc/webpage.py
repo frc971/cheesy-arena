@@ -1,11 +1,8 @@
 from flask import Flask, jsonify, render_template_string
 from nplc import NPLC
 
-RED_HUB_URL = "http://red-hub.local"
-BLUE_HUB_URL = "http://blue-hub.local"
-
 app = Flask(__name__)
-nplc = NPLC(RED_HUB_URL, BLUE_HUB_URL)
+nplc = NPLC("http://127.0.0.1:8000", "http://127.0.0.1:8001")
 
 @app.route("/scores")
 def get_scores():
@@ -13,8 +10,8 @@ def get_scores():
         red_status = nplc.get_hub_status("red")
         blue_status = nplc.get_hub_status("blue")
         
-        red_fuel = red_status.get("fuel", 0)
-        blue_fuel = blue_status.get("fuel", 0)
+        red_fuel = red_status.get("count", "?")
+        blue_fuel = blue_status.get("count", "?")
         total_fuel = red_fuel + blue_fuel
 
         return jsonify({
@@ -36,7 +33,7 @@ def home():
             body {
                 margin: 0;
                 height: 100vh;
-                background: #00ff66; /* green screen */
+                background: #00ff66;
                 display: flex;
                 flex-direction: column;
                 justify-content: center;
@@ -80,9 +77,8 @@ def home():
                 }
             }
 
-            // Update every 2 seconds
-            setInterval(updateScores, 2000);
-            updateScores(); // initial call
+            setInterval(updateScores, 500);
+            updateScores();
         </script>
     </body>
     </html>
