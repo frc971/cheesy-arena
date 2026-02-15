@@ -105,8 +105,8 @@
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            totalTimeEl.textContent = data.total_time_left.toFixed(2);
-            phaseTimeEl.textContent = data.time_left_in_phase.toFixed(2);
+            totalTimeEl.textContent = data.total_time_left;
+            phaseTimeEl.textContent = data.time_left_in_phase;
             currentPhaseEl.textContent = data.current_phase;
             hubActiveEl.textContent = `Hub Active: ${data.hub_active}`;
             redScoreEl.textContent = data.red_score;

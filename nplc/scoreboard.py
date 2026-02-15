@@ -31,6 +31,13 @@ def safe_hub_status(hub_name):
     except Exception:
         return 0, False
 
+def format_time(seconds: float) -> str:
+    """Convert seconds to MM:SS format with leading zeros."""
+    minutes = int(seconds) // 60
+    secs = int(seconds) % 60
+    return f"{minutes:02d}:{secs:02d}"
+
+
 async def safe_hub_status_async(hub_name):
     """Run the blocking safe_hub_status in a thread so it doesn't block the event loop."""
     return await asyncio.to_thread(safe_hub_status, hub_name)
@@ -97,9 +104,9 @@ async def websocket_endpoint(ws: WebSocket):
 
             # Send data to WebSocket
             data = {
-                "total_time_left": time_left_total,
+                "total_time_left": format_time(time_left_total),
                 "current_phase": current_phase,
-                "time_left_in_phase": round(time_left_in_phase, 2),
+                "time_left_in_phase": format_time(time_left_in_phase),
                 "hub_active": hub_active,
                 "red_score": red_score,
                 "blue_score": blue_score
