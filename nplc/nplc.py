@@ -26,6 +26,27 @@ class NPLC:
 
     def get_hub_status(self, hub):
         return self._get_hub(hub, "/status")
+    
+    def get_game_time(self):
+        return self._request_json(self._hub_url("blue", "/time"), "GET")
+    
+    def post_game_time(self, new_time):
+        url = self._hub_url("blue", "/time")
+        data = json.dumps({"time": int(round(new_time))}).encode("utf-8")
+        req = request.Request(
+            url, data=data, method="POST", headers={"Content-Type": "application/json"}
+        )
+        try:
+            with request.urlopen(req, timeout=self._timeout_sec) as response:
+                payload = response.read().decode("utf-8")
+                return json.loads(payload) if payload else {}
+        except error.HTTPError as exc:
+            message = exc.read().decode("utf-8").strip()
+            raise RuntimeError(f"nplc http error {exc.code} from {url}: {message}") from exc
+        except error.URLError as exc:
+            raise RuntimeError(f"nplc connection error to {url}: {exc.reason}") from exc
+
+
 
     def _get_hub(self, hub, path):
         return self._request_json(self._hub_url(hub, path), "GET")

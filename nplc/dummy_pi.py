@@ -42,6 +42,10 @@ class DummyPiHandler(BaseHTTPRequestHandler):
         if self.path == "/status":
             self._send_json(200, self.state.status())
             return
+        if self.path == "/time":
+            with self.game_time_lock:
+                self._send_json(200, {"time": self.game_time})
+            return
         self._send_json(404, {"ok": False, "error": "not found"})
 
     def do_POST(self):
@@ -57,6 +61,18 @@ class DummyPiHandler(BaseHTTPRequestHandler):
             self.state.reset()
             self._send_json(200, {"ok": True})
             return
+        if self.path == "/time":
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length)
+            try:
+                data = json.loads(body)
+                with self.game_time_lock:
+                    self.game_time = data.get("time", self.game_time)
+                self._send_json(200, {"time": self.game_time, "ok": True})
+            except Exception:
+                self._send_json(400, {"ok": False, "error": "invalid JSON"})
+            return
+
         self._send_json(404, {"ok": False, "error": "not found"})
 
     def log_message(self, format, *args):

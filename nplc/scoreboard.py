@@ -10,7 +10,7 @@ from nplc import NPLC
 
 app = FastAPI()
 
-red_url = "http://127.0.0.1:8002"
+red_url = "http://127.0.0.1:8000"
 blue_url = "http://127.0.0.1:8001"
 nplc = NPLC(red_url, blue_url, timeout_sec=0.5)
 
@@ -42,7 +42,6 @@ async def websocket_endpoint(ws: WebSocket):
     print("WS connection attempt")
     await ws.accept()
     print("WS connection accepted")
-    start_time = time.time()
 
     phases = [
         (20.0, "AUTO", "both"),
@@ -57,8 +56,7 @@ async def websocket_endpoint(ws: WebSocket):
 
     try:
         while True:
-            elapsed = time.time() - start_time
-            time_left_total = max(0, total_game_time - elapsed)
+            time_left_total = max(0, nplc.get_game_time().get("time", 0))
 
             current_phase = phases[-1][1]
             time_left_in_phase = 0
