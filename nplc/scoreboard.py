@@ -56,7 +56,10 @@ async def websocket_endpoint(ws: WebSocket):
 
     try:
         while True:
-            time_left_total = max(0, nplc.get_game_time().get("time", 0))
+            game_time_response = nplc.get_game_time()
+            time_left_total = game_time_response.get("time", 0)
+            print(f"Game time response: {game_time_response}, time_left: {time_left_total}")
+            elapsed = max(0.0, float(total_game_time) - float(time_left_total))
 
             current_phase = phases[-1][1]
             time_left_in_phase = 0
@@ -97,3 +100,11 @@ async def websocket_endpoint(ws: WebSocket):
 
     except WebSocketDisconnect:
         print("WS client disconnected")
+
+
+if __name__ == "__main__":
+    import os
+    import uvicorn
+
+    port = int(os.environ.get("SCOREBOARD_PORT", "5000"))
+    uvicorn.run("nplc.scoreboard:app", host="127.0.0.1", port=port)

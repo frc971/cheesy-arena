@@ -187,7 +187,7 @@ class Dashboard:
         blue_status = self._poll_status("blue")
         match_left =  max(0, int(round(self.match_end - elapsed)))
         try:
-            self.nplc.post_game_time(match_left)
+            print(self.nplc.post_game_time(match_left))
         except RuntimeError as exc:
             self.last_message = f"error posting time: {exc}"
         status = {

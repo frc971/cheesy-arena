@@ -37,6 +37,8 @@ class DummyPiState:
 
 class DummyPiHandler(BaseHTTPRequestHandler):
     state = DummyPiState()
+    game_time_lock = threading.Lock()
+    game_time = 0
 
     def do_GET(self):
         if self.path == "/status":
@@ -44,7 +46,7 @@ class DummyPiHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/time":
             with self.game_time_lock:
-                self._send_json(200, {"time": self.game_time})
+                self._send_json(200, {"time": DummyPiHandler.game_time})
             return
         self._send_json(404, {"ok": False, "error": "not found"})
 
@@ -67,8 +69,15 @@ class DummyPiHandler(BaseHTTPRequestHandler):
             try:
                 data = json.loads(body)
                 with self.game_time_lock:
-                    self.game_time = data.get("time", self.game_time)
-                self._send_json(200, {"time": self.game_time, "ok": True})
+                    DummyPiHandler.game_time = data.get("time", DummyPiHandler.game_time)
+                # Log POSTs to a temporary file for external inspection
+                try:
+                    with open("/tmp/dummy_pi_time.log", "a") as lf:
+                        lf.write(f"{time.time()} POST /time {data}\n")
+                except Exception:
+                    pass
+                print(f"Received POST /time: {data}")
+                self._send_json(200, {"time": DummyPiHandler.game_time, "ok": True})
             except Exception:
                 self._send_json(400, {"ok": False, "error": "invalid JSON"})
             return
