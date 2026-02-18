@@ -3,6 +3,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from pathlib import Path
+from urllib import request, error
 import asyncio
 import time
 import json
@@ -12,6 +13,7 @@ app = FastAPI()
 
 red_url = "http://127.0.0.1:8000"
 blue_url = "http://127.0.0.1:8001"
+dashboard_url = "http://127.0.0.1:5001"
 nplc = NPLC(red_url, blue_url, timeout_sec=0.5)
 
 
@@ -22,6 +24,17 @@ def safe_hub_status(hub_name):
     except Exception:
         return 0, False
 
+def get_match_state():
+    """Get current match state from dashboard API."""
+    try:
+        req = request.Request(f"{dashboard_url}/match/state", method="GET")
+        with request.urlopen(req, timeout=0.5) as response:
+            payload = response.read().decode("utf-8")
+            return json.loads(payload) if payload else None
+    except Exception as e:
+        print(f"Error getting match state from dashboard: {e}")
+        return None
+
 def format_time(seconds: float) -> str:
     minutes = int(seconds) // 60
     secs = int(seconds) % 60
@@ -30,6 +43,9 @@ def format_time(seconds: float) -> str:
 
 async def safe_hub_status_async(hub_name):
     return await asyncio.to_thread(safe_hub_status, hub_name)
+
+async def get_match_state_async():
+    return await asyncio.to_thread(get_match_state)
 
 
 @app.get("/")
@@ -56,19 +72,25 @@ async def websocket_endpoint(ws: WebSocket):
 
     try:
         while True:
-            game_time_response = nplc.get_game_time()
-            time_left_total = game_time_response.get("time", 0)
-            print(f"Game time response: {game_time_response}, time_left: {time_left_total}")
-            elapsed = max(0.0, float(total_game_time) - float(time_left_total))
+            # Get match state from dashboard
+            match_state = await get_match_state_async()
+            if match_state is None:
+                # Fallback if dashboard is unavailable
+                await ws.send_text(json.dumps({
+                    "total_time_left": "00:00",
+                    "current_phase": "ERROR",
+                    "time_left_in_phase": "00:00",
+                    "hub_active": "NONE",
+                    "red_score": 0,
+                    "blue_score": 0
+                }))
+                await asyncio.sleep(0.03)
+                continue
 
-            current_phase = phases[-1][1]
-            time_left_in_phase = 0
-            for i, (phase_end, phase_name, _) in enumerate(phases):
-                if elapsed <= phase_end:
-                    current_phase = phase_name
-                    phase_start = 0 if i == 0 else phases[i - 1][0]
-                    time_left_in_phase = max(0, phase_end - elapsed)
-                    break
+            time_left_total = match_state.get("match_time_left", 0)
+            elapsed = match_state.get("elapsed", 0)
+            current_phase = match_state.get("phase", "IDLE")
+            time_left_in_phase = match_state.get("phase_time_left", 0)
 
             red_task = safe_hub_status_async("red")
             blue_task = safe_hub_status_async("blue")

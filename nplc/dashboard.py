@@ -5,7 +5,12 @@ import sys
 import termios
 import time
 import tty
+import threading
+import json
+from datetime import datetime, timedelta
 
+from fastapi import FastAPI
+import uvicorn
 from nplc import NPLC
 
 DEACTIVATION_GRACE_SEC = 3.0
@@ -46,6 +51,19 @@ class Dashboard:
         self.last_message = "none"
         self.hub_active = {"red": False, "blue": False}
         self.stop_at = {"red": None, "blue": None}
+        self.match_state_lock = threading.Lock()
+        self.match_state = {
+            "running": False,
+            "elapsed": 0,
+            "match_time_left": self.match_end,
+            "phase": "IDLE",
+            "phase_time_left": 0,
+            "shift_active": "none",
+            "red_count": 0,
+            "red_state": "stopped",
+            "blue_count": 0,
+            "blue_state": "stopped",
+        }
 
     def _build_timeline(self):
         return [
@@ -186,10 +204,22 @@ class Dashboard:
         red_status = self._poll_status("red")
         blue_status = self._poll_status("blue")
         match_left =  max(0, int(round(self.match_end - elapsed)))
-        try:
-            print(self.nplc.post_game_time(match_left))
-        except RuntimeError as exc:
-            self.last_message = f"error posting time: {exc}"
+        
+        # Update shared match state for HTTP API
+        with self.match_state_lock:
+            self.match_state = {
+                "running": self.running,
+                "elapsed": elapsed,
+                "match_time_left": match_left,
+                "phase": phase,
+                "phase_time_left": phase_left,
+                "shift_active": shift_active,
+                "red_count": red_status.get("count", 0),
+                "red_state": red_status.get("state", "stopped"),
+                "blue_count": blue_status.get("count", 0),
+                "blue_state": blue_status.get("state", "stopped"),
+            }
+        
         status = {
             "phase": phase,
             "match_time": fmt_time(match_left),
@@ -224,15 +254,42 @@ class Dashboard:
             sys.stdout.write("\n")
 
 
+# Global dashboard instance for HTTP API
+dashboard = None
+
+# FastAPI app for serving match state
+api = FastAPI()
+
+@api.get("/match/state")
+def get_match_state():
+    """Get current match state including elapsed time and remaining time."""
+    if dashboard is None:
+        return {"error": "Dashboard not initialized"}
+    with dashboard.match_state_lock:
+        return dashboard.match_state.copy()
+
 def main():
+    global dashboard
     parser = argparse.ArgumentParser(description="Simple match dashboard for NPLC fuel counters.")
     parser.add_argument("--red", required=True, help="Red hub base URL, e.g. http://10.0.0.10:8000")
     parser.add_argument("--blue", required=True, help="Blue hub base URL, e.g. http://10.0.0.11:8000")
     parser.add_argument("--rate", type=float, default=5.0, help="Polling rate in Hz (default: 5)")
     parser.add_argument("--timeout", type=float, default=2.0, help="HTTP timeout in seconds (default: 2)")
+    parser.add_argument("--api-port", type=int, default=5001, help="Port for HTTP API (default: 5001)")
     args = parser.parse_args()
 
-    Dashboard(args.red, args.blue, args.rate, args.timeout).run()
+    dashboard = Dashboard(args.red, args.blue, args.rate, args.timeout)
+    
+    # Start API server in background thread
+    import threading
+    api_thread = threading.Thread(
+        target=lambda: uvicorn.run(api, host="0.0.0.0", port=args.api_port, log_level="error"),
+        daemon=True
+    )
+    api_thread.start()
+    
+    # Run dashboard CLI
+    dashboard.run()
 
 
 if __name__ == "__main__":

@@ -1,7 +1,6 @@
 import asyncio
-import threading
 import RPi.GPIO as GPIO
-from fastapi import FastAPI, Body
+from fastapi import FastAPI
 import uvicorn
 
 class BallCounter:
@@ -11,8 +10,6 @@ class BallCounter:
         self.count = 0
         self.active = False
         self.led_pin = led_pin
-        self.game_time_lock = threading.Lock()
-        self.game_time = 0
 
     def setup_gpio(self) -> None:
         GPIO.setmode(GPIO.BCM)
@@ -84,16 +81,7 @@ def lights_off():
     counter.set_LED_status(False)
     return {"ok": True}
 
-@app.get("/time")
-def get_time():
-    with counter.game_time_lock:
-        return {"time": counter.game_time}
 
-@app.post("/time")
-def post_time(data: dict = Body(...)):
-    with counter.game_time_lock:
-        counter.game_time = data.get("time", counter.game_time)
-    return {"time": counter.game_time, "ok": True}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=5000)
