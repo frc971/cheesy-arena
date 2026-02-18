@@ -45,6 +45,8 @@ class Dashboard:
         self.shift1_active = None
         self.last_message = "none"
         self.hub_active = {"red": False, "blue": False}
+        self.hub_lights_on = {"red": False, "blue": False}
+        self.light_control_supported = {"red": True, "blue": True}
         self.stop_at = {"red": None, "blue": None}
 
     def _build_timeline(self):
@@ -77,9 +79,25 @@ class Dashboard:
             self.nplc.reset_hub_count("red")
             self.nplc.reset_hub_count("blue")
             self.hub_active = {"red": False, "blue": False}
+            self.hub_lights_on = {"red": False, "blue": False}
             self.stop_at = {"red": None, "blue": None}
         except RuntimeError as exc:
             self.last_message = f"error resetting hubs: {exc}"
+
+    def _set_hub_lights(self, hub, on):
+        if not self.light_control_supported[hub]:
+            return
+        if self.hub_lights_on[hub] == on:
+            return
+        try:
+            if on:
+                self.nplc.turn_hub_lights_on(hub)
+            else:
+                self.nplc.turn_hub_lights_off(hub)
+            self.hub_lights_on[hub] = on
+        except RuntimeError as exc:
+            self.light_control_supported[hub] = False
+            self.last_message = f"warning: {hub} lights endpoint unavailable: {exc}"
 
     def _schedule_stop(self, hub, now):
         if self.hub_active[hub] and self.stop_at[hub] is None:
@@ -172,12 +190,15 @@ class Dashboard:
                     self._ensure_active(hub)
                 else:
                     self._schedule_stop(hub, now)
+                self._set_hub_lights(hub, desired[hub])
             self._update_stops(now)
             if elapsed >= self.match_end + DEACTIVATION_GRACE_SEC:
                 self.running = False
                 self.last_message = "match complete"
         else:
             self._update_stops(now)
+            for hub in ("red", "blue"):
+                self._set_hub_lights(hub, False)
             phase = "IDLE"
             phase_left = 0
             shift_active = "none"

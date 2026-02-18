@@ -11,18 +11,23 @@ from nplc import NPLC
 def render(red_status, blue_status, message):
     red_count = red_status.get("count", "?")
     red_state = red_status.get("state", "?")
+    red_lights = red_status.get("lights", "?")
     blue_count = blue_status.get("count", "?")
     blue_state = blue_status.get("state", "?")
+    blue_lights = blue_status.get("lights", "?")
     return (
         "NPLC Fuel Counter Display\n"
         "==========================\n"
-        f"Red  Hub: {red_count}  [{red_state}]\n"
-        f"Blue Hub: {blue_count}  [{blue_state}]\n"
+        f"Red  Hub: {red_count}  [{red_state}]  lights={red_lights}\n"
+        f"Blue Hub: {blue_count}  [{blue_state}]  lights={blue_lights}\n"
         "\n"
         "Controls:\n"
         "  1 start red   2 stop red   3 reset red\n"
         "  4 start blue  5 stop blue  6 reset blue\n"
         "  a start both  s stop both  d reset both\n"
+        "  z lights red on   x lights red off\n"
+        "  c lights blue on  v lights blue off\n"
+        "  b lights both on  n lights both off\n"
         "  q quit\n"
         f"\nLast action: {message}\n"
     )
@@ -80,6 +85,26 @@ def main():
                         nplc.reset_hub_count("red")
                         nplc.reset_hub_count("blue")
                         last_message = "reset both"
+                    elif key == "z":
+                        nplc.turn_hub_lights_on("red")
+                        last_message = "lights red on"
+                    elif key == "x":
+                        nplc.turn_hub_lights_off("red")
+                        last_message = "lights red off"
+                    elif key == "c":
+                        nplc.turn_hub_lights_on("blue")
+                        last_message = "lights blue on"
+                    elif key == "v":
+                        nplc.turn_hub_lights_off("blue")
+                        last_message = "lights blue off"
+                    elif key == "b":
+                        nplc.turn_hub_lights_on("red")
+                        nplc.turn_hub_lights_on("blue")
+                        last_message = "lights both on"
+                    elif key == "n":
+                        nplc.turn_hub_lights_off("red")
+                        nplc.turn_hub_lights_off("blue")
+                        last_message = "lights both off"
 
                 try:
                     red_status = nplc.get_hub_status("red")
