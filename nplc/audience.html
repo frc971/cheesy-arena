@@ -61,7 +61,6 @@
         background: white;
     }
 
-    /* CENTER TIMER */
     #center-circle {
         position: absolute;
         left: 50%;
@@ -80,7 +79,7 @@
     }
 
     #phase-time {
-        font-size: 48px;   /* Bigger */
+        font-size: 48px;
     }
 
     #current-phase {
@@ -89,15 +88,14 @@
         color: #333;
     }
 
-    /* BOTTOM STRIP */
     #bottom-strip {
         height: 70px;
         background: #333;
         color: white;
         display: flex;
-        justify-content: center;  /* Centered now */
+        justify-content: center;
         align-items: center;
-        font-size: 32px;          /* Bigger */
+        font-size: 32px;
         font-weight: bold;
         letter-spacing: 1px;
         border-left: 1px solid #888;
@@ -113,20 +111,16 @@
 <div id="scoreboard-wrapper">
 
     <div id="scoreboard">
-
-        <!-- RED -->
         <div class="alliance red">
             <div class="hub-circle" id="red-hub"></div>
             <div class="score" id="red-score">0</div>
         </div>
 
-        <!-- BLUE -->
         <div class="alliance blue">
             <div class="score" id="blue-score">0</div>
             <div class="hub-circle" id="blue-hub"></div>
         </div>
 
-        <!-- CENTER TIMER -->
         <div id="center-circle">
             <div id="phase-time">0:00</div>
             <div id="current-phase">AUTO</div>
@@ -134,7 +128,6 @@
 
     </div>
 
-    <!-- CENTERED TOTAL TIME -->
     <div id="bottom-strip">
         <span id="total-time">0:00</span>
     </div>

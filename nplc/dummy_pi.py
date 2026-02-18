@@ -70,13 +70,6 @@ class DummyPiHandler(BaseHTTPRequestHandler):
                 data = json.loads(body)
                 with self.game_time_lock:
                     DummyPiHandler.game_time = data.get("time", DummyPiHandler.game_time)
-                # Log POSTs to a temporary file for external inspection
-                try:
-                    with open("/tmp/dummy_pi_time.log", "a") as lf:
-                        lf.write(f"{time.time()} POST /time {data}\n")
-                except Exception:
-                    pass
-                print(f"Received POST /time: {data}")
                 self._send_json(200, {"time": DummyPiHandler.game_time, "ok": True})
             except Exception:
                 self._send_json(400, {"ok": False, "error": "invalid JSON"})
