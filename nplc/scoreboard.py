@@ -50,7 +50,7 @@ async def get_match_state_async():
 
 @app.get("/")
 def serve_audience():
-    html_path = Path(__file__).parent / "audience.html"
+    html_path = Path(__file__).parent / "scoreboard.html"
     return FileResponse(html_path)
 
 @app.websocket("/ws")
