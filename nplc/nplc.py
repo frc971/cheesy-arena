@@ -33,6 +33,8 @@ class NPLC:
     def get_hub_status(self, hub):
         return self._get_hub(hub, "/status")
 
+
+
     def _get_hub(self, hub, path):
         return self._request_json(self._hub_url(hub, path), "GET")
 

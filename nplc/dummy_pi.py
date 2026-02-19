@@ -47,6 +47,8 @@ class DummyPiState:
 
 class DummyPiHandler(BaseHTTPRequestHandler):
     state = DummyPiState()
+    game_time_lock = threading.Lock()
+    game_time = 0
 
     def do_GET(self):
         if self.path == "/status":
@@ -75,6 +77,7 @@ class DummyPiHandler(BaseHTTPRequestHandler):
             self.state.lights_off()
             self._send_json(200, {"ok": True})
             return
+
         self._send_json(404, {"ok": False, "error": "not found"})
 
     def log_message(self, format, *args):
