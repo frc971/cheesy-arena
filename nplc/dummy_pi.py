@@ -54,10 +54,6 @@ class DummyPiHandler(BaseHTTPRequestHandler):
         if self.path == "/status":
             self._send_json(200, self.state.status())
             return
-        if self.path == "/time":
-            with self.game_time_lock:
-                self._send_json(200, {"time": DummyPiHandler.game_time})
-            return
         self._send_json(404, {"ok": False, "error": "not found"})
 
     def do_POST(self):
@@ -81,6 +77,7 @@ class DummyPiHandler(BaseHTTPRequestHandler):
             self.state.lights_off()
             self._send_json(200, {"ok": True})
             return
+
         self._send_json(404, {"ok": False, "error": "not found"})
 
     def log_message(self, format, *args):
