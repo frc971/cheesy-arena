@@ -10,6 +10,7 @@ class DummyPiState:
         self._lock = threading.Lock()
         self._count = 0
         self._running = False
+        self._lights_on = False
 
     def start(self):
         with self._lock:
@@ -23,11 +24,20 @@ class DummyPiState:
         with self._lock:
             self._count = 0
             self._running = False
+            self._lights_on = False
+
+    def lights_on(self):
+        with self._lock:
+            self._lights_on = True
+
+    def lights_off(self):
+        with self._lock:
+            self._lights_on = False
 
     def status(self):
         with self._lock:
             state = "running" if self._running else "stopped"
-            return {"state": state, "count": self._count}
+            return {"state": state, "count": self._count, "lights": "on" if self._lights_on else "off"}
 
     def tick(self):
         with self._lock:
@@ -63,18 +73,14 @@ class DummyPiHandler(BaseHTTPRequestHandler):
             self.state.reset()
             self._send_json(200, {"ok": True})
             return
-        if self.path == "/time":
-            length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(length)
-            try:
-                data = json.loads(body)
-                with self.game_time_lock:
-                    DummyPiHandler.game_time = data.get("time", DummyPiHandler.game_time)
-                self._send_json(200, {"time": DummyPiHandler.game_time, "ok": True})
-            except Exception:
-                self._send_json(400, {"ok": False, "error": "invalid JSON"})
+        if self.path == "/lights_on":
+            self.state.lights_on()
+            self._send_json(200, {"ok": True})
             return
-
+        if self.path == "/lights_off":
+            self.state.lights_off()
+            self._send_json(200, {"ok": True})
+            return
         self._send_json(404, {"ok": False, "error": "not found"})
 
     def log_message(self, format, *args):

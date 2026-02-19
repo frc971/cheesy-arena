@@ -24,6 +24,12 @@ class NPLC:
     def reset_hub_count(self, hub):
         return self._post_hub(hub, "/reset")
 
+    def turn_hub_lights_on(self, hub):
+        return self._post_hub(hub, "/lights_on")
+
+    def turn_hub_lights_off(self, hub):
+        return self._post_hub(hub, "/lights_off")
+
     def get_hub_status(self, hub):
         return self._get_hub(hub, "/status")
 
