@@ -19,9 +19,20 @@ python nplc/dummy_pi.py --port 8001 --rate 2
 ```
 2. Start the match dashboard in a third terminal:
 ```bash
-python nplc/dashboard.py --red http://127.0.0.1:8000 --blue http://127.0.0.1:8001
+uv run python nplc/dashboard.py --red http://127.0.0.1:8000 --blue http://127.0.0.1:8001
 ```
 3. Press `g` to start the game, `x` to stop, `r` to reset, `q` to quit.
+
+**Webpage dashboard**
+The webpage is display-only (no game logic).
+Game logic runs on the Pi instances.
+The dashboard controls the match state.
+
+1. Start the game webpage display in a seperate 4th terminal alongside the dashboard, and 2 dummy pi's
+```bash
+uv run uvicorn scoreboard:app --host 127.0.0.1 --port 5000 --reload
+```
+- This should be the same as real life except you would change the hosts and port to be the real life configuration instead
 
 **Manual control display (optional)**
 Use this if you want manual start/stop/reset controls instead of match timing:
@@ -41,6 +52,7 @@ python -m pip install fastapi uvicorn
 python nplc/raspi.py
 ```
 5. Point the dashboard or display at each Pi's IP address.
+
 
 **Dashboard behavior (ball counting only)**
 - AUTO and TRANSITION: both hubs active.
