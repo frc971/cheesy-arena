@@ -18,8 +18,8 @@ This folder contains a lightweight, networked fuel counter system for two hubs (
 
 ```bash
 cd nplc
-python dummy_pi.py --port 8000 --rate 3
-python dummy_pi.py --port 8001 --rate 2
+uv run dummy_pi.py --port 8000 --rate 3
+uv run dummy_pi.py --port 8001 --rate 2
 ```
 
 2. Start the match dashboard in a third terminal:
@@ -47,7 +47,7 @@ uv run uvicorn scoreboard:app --host 127.0.0.1 --port 5000 --reload
 Use this if you want manual start/stop/reset controls instead of match timing:
 
 ```bash
-python display.py --red http://127.0.0.1:8000 --blue http://127.0.0.1:8001
+uv run display.py --red http://127.0.0.1:8000 --blue http://127.0.0.1:8001
 ```
 
 **Running on real Raspberry Pis**
@@ -55,7 +55,7 @@ python display.py --red http://127.0.0.1:8000 --blue http://127.0.0.1:8001
 1. Install dependencies on each Pi:
 
 ```bash
-python -m pip install fastapi uvicorn
+uv run -m pip install fastapi uvicorn
 ```
 
 2. Ensure `RPi.GPIO` is installed (usually preinstalled on Raspberry Pi OS).
@@ -63,7 +63,7 @@ python -m pip install fastapi uvicorn
 4. Run on each Pi (red and blue):
 
 ```bash
-python nplc/raspi.py
+uv run nplc/raspi.py
 ```
 
 5. Point the dashboard or display at each Pi's IP address.
