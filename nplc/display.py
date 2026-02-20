@@ -1,9 +1,6 @@
 import argparse
-import select
 import sys
-import termios
 import time
-import tty
 
 from nplc import NPLC
 
@@ -45,82 +42,82 @@ def main():
     sleep_s = 1.0 / max(args.rate, 0.1)
     last_message = "none"
 
+    def apply_command(key):
+        nonlocal last_message
+        if key == "1":
+            nplc.start_hub_counting("red")
+            last_message = "start red"
+        elif key == "2":
+            nplc.stop_hub_counting("red")
+            last_message = "stop red"
+        elif key == "3":
+            nplc.reset_hub_count("red")
+            last_message = "reset red"
+        elif key == "4":
+            nplc.start_hub_counting("blue")
+            last_message = "start blue"
+        elif key == "5":
+            nplc.stop_hub_counting("blue")
+            last_message = "stop blue"
+        elif key == "6":
+            nplc.reset_hub_count("blue")
+            last_message = "reset blue"
+        elif key == "a":
+            nplc.start_hub_counting("red")
+            nplc.start_hub_counting("blue")
+            last_message = "start both"
+        elif key == "s":
+            nplc.stop_hub_counting("red")
+            nplc.stop_hub_counting("blue")
+            last_message = "stop both"
+        elif key == "d":
+            nplc.reset_hub_count("red")
+            nplc.reset_hub_count("blue")
+            last_message = "reset both"
+        elif key == "z":
+            nplc.turn_hub_lights_on("red")
+            last_message = "lights red on"
+        elif key == "x":
+            nplc.turn_hub_lights_off("red")
+            last_message = "lights red off"
+        elif key == "c":
+            nplc.turn_hub_lights_on("blue")
+            last_message = "lights blue on"
+        elif key == "v":
+            nplc.turn_hub_lights_off("blue")
+            last_message = "lights blue off"
+        elif key == "b":
+            nplc.turn_hub_lights_on("red")
+            nplc.turn_hub_lights_on("blue")
+            last_message = "lights both on"
+        elif key == "n":
+            nplc.turn_hub_lights_off("red")
+            nplc.turn_hub_lights_off("blue")
+            last_message = "lights both off"
+        elif key:
+            last_message = f"unknown command: {key}"
+
     try:
-        stdin_fd = sys.stdin.fileno()
-        original_settings = termios.tcgetattr(stdin_fd)
-        tty.setcbreak(stdin_fd)
-        try:
-            while True:
-                if select.select([sys.stdin], [], [], 0)[0]:
-                    key = sys.stdin.read(1)
-                    if key == "q":
-                        break
-                    if key == "1":
-                        nplc.start_hub_counting("red")
-                        last_message = "start red"
-                    elif key == "2":
-                        nplc.stop_hub_counting("red")
-                        last_message = "stop red"
-                    elif key == "3":
-                        nplc.reset_hub_count("red")
-                        last_message = "reset red"
-                    elif key == "4":
-                        nplc.start_hub_counting("blue")
-                        last_message = "start blue"
-                    elif key == "5":
-                        nplc.stop_hub_counting("blue")
-                        last_message = "stop blue"
-                    elif key == "6":
-                        nplc.reset_hub_count("blue")
-                        last_message = "reset blue"
-                    elif key == "a":
-                        nplc.start_hub_counting("red")
-                        nplc.start_hub_counting("blue")
-                        last_message = "start both"
-                    elif key == "s":
-                        nplc.stop_hub_counting("red")
-                        nplc.stop_hub_counting("blue")
-                        last_message = "stop both"
-                    elif key == "d":
-                        nplc.reset_hub_count("red")
-                        nplc.reset_hub_count("blue")
-                        last_message = "reset both"
-                    elif key == "z":
-                        nplc.turn_hub_lights_on("red")
-                        last_message = "lights red on"
-                    elif key == "x":
-                        nplc.turn_hub_lights_off("red")
-                        last_message = "lights red off"
-                    elif key == "c":
-                        nplc.turn_hub_lights_on("blue")
-                        last_message = "lights blue on"
-                    elif key == "v":
-                        nplc.turn_hub_lights_off("blue")
-                        last_message = "lights blue off"
-                    elif key == "b":
-                        nplc.turn_hub_lights_on("red")
-                        nplc.turn_hub_lights_on("blue")
-                        last_message = "lights both on"
-                    elif key == "n":
-                        nplc.turn_hub_lights_off("red")
-                        nplc.turn_hub_lights_off("blue")
-                        last_message = "lights both off"
+        while True:
+            try:
+                red_status = nplc.get_hub_status("red")
+            except RuntimeError as exc:
+                red_status = {"count": "ERR", "state": str(exc)}
+            try:
+                blue_status = nplc.get_hub_status("blue")
+            except RuntimeError as exc:
+                blue_status = {"count": "ERR", "state": str(exc)}
 
-                try:
-                    red_status = nplc.get_hub_status("red")
-                except RuntimeError as exc:
-                    red_status = {"count": "ERR", "state": str(exc)}
-                try:
-                    blue_status = nplc.get_hub_status("blue")
-                except RuntimeError as exc:
-                    blue_status = {"count": "ERR", "state": str(exc)}
+            sys.stdout.write("\x1b[2J\x1b[H")
+            sys.stdout.write(render(red_status, blue_status, last_message))
+            sys.stdout.write("\nEnter command (q to quit): ")
+            sys.stdout.flush()
 
-                sys.stdout.write("\x1b[2J\x1b[H")
-                sys.stdout.write(render(red_status, blue_status, last_message))
-                sys.stdout.flush()
-                time.sleep(sleep_s)
-        finally:
-            termios.tcsetattr(stdin_fd, termios.TCSADRAIN, original_settings)
+            key = input().strip().lower()
+            if key == "q":
+                break
+            apply_command(key[:1] if key else "")
+            time.sleep(sleep_s)
     except KeyboardInterrupt:
         sys.stdout.write("\n")
 

@@ -1,13 +1,8 @@
 import argparse
 import random
-import select
 import sys
-import termios
 import time
-import tty
 import threading
-import json
-from datetime import datetime, timedelta
 
 from fastapi import FastAPI
 import uvicorn
@@ -33,8 +28,8 @@ def render(status, message):
         f"Red  Hub: {status['red_count']}  [{status['red_state']}]\n"
         f"Blue Hub: {status['blue_count']}  [{status['blue_state']}]\n"
         "\n"
-        "Controls:\n"
-        "  g start game   x stop game   r reset counts   q quit\n"
+        "Match control:\n"
+        "  auto-start on launch   Ctrl+C to quit\n"
         f"\nLast action: {message}\n"
     )
 
@@ -178,25 +173,14 @@ class Dashboard:
         except RuntimeError as exc:
             return {"count": "ERR", "state": str(exc)}
 
-    def _handle_key(self, key):
-        if key == "g":
-            self._reset_hubs()
-            self._start_hub("red")
-            self._start_hub("blue")
-            self.running = True
-            self.start_time = time.time()
-            self.shift1_active = None
-            self.last_message = "game started"
-        elif key == "x":
-            self.running = False
-            now = time.time()
-            self._schedule_stop("red", now)
-            self._schedule_stop("blue", now)
-            self.last_message = "game stopped"
-        elif key == "r":
-            self._reset_hubs()
-            self.running = False
-            self.last_message = "counts reset"
+    def _start_game(self):
+        self._reset_hubs()
+        self._start_hub("red")
+        self._start_hub("blue")
+        self.running = True
+        self.start_time = time.time()
+        self.shift1_active = None
+        self.last_message = "game started"
 
     def _tick(self):
         now = time.time()
@@ -257,20 +241,10 @@ class Dashboard:
         time.sleep(self.sleep_s)
 
     def run(self):
+        self._start_game()
         try:
-            stdin_fd = sys.stdin.fileno()
-            original_settings = termios.tcgetattr(stdin_fd)
-            tty.setcbreak(stdin_fd)
-            try:
-                while True:
-                    if select.select([sys.stdin], [], [], 0)[0]:
-                        key = sys.stdin.read(1)
-                        if key == "q":
-                            break
-                        self._handle_key(key)
-                    self._tick()
-            finally:
-                termios.tcsetattr(stdin_fd, termios.TCSADRAIN, original_settings)
+            while True:
+                self._tick()
         except KeyboardInterrupt:
             sys.stdout.write("\n")
 

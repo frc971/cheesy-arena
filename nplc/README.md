@@ -28,7 +28,7 @@ uv run dummy_pi.py --port 8001 --rate 2
 uv run dashboard.py --red http://127.0.0.1:8000 --blue http://127.0.0.1:8001
 ```
 
-3. Press `g` to start the game, `x` to stop, `r` to reset, `q` to quit.
+3. The game auto-starts on launch. Press `Ctrl+C` to quit the dashboard.
 
 **Webpage dashboard**
 The webpage is display-only (no game logic).
