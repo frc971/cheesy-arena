@@ -3,9 +3,8 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from pathlib import Path
-from urllib import request, error
+from urllib import request
 import asyncio
-import time
 import json
 from nplc import NPLC
 
@@ -72,10 +71,8 @@ async def websocket_endpoint(ws: WebSocket):
 
     try:
         while True:
-            # Get match state from dashboard
             match_state = await get_match_state_async()
             if match_state is None:
-                # Fallback if dashboard is unavailable
                 await ws.send_text(json.dumps({
                     "total_time_left": "00:00",
                     "current_phase": "ERROR",
