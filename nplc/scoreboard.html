@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FRC Scoreboard</title>
+
+<style>
+    body {
+        margin: 0;
+        background: #00ff00;
+        font-family: Arial, Helvetica, sans-serif;
+    }
+
+    #scoreboard-wrapper {
+        position: absolute;
+        bottom: 40px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 1000px;
+    }
+
+    #scoreboard {
+        position: relative;
+        height: 150px;
+        display: flex;
+        border: 1px solid #888;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+    }
+
+    .alliance {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        color: white;
+    }
+
+    .red { background: #ff4040; }
+    .blue { background: #2f78d8; }
+
+    .score {
+        font-size: 72px;
+        font-weight: bold;
+    }
+
+    /* HUB CIRCLES */
+    .hub-circle {
+        position: absolute;
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        border: 3px solid white;
+        background: transparent;
+    }
+
+    .red .hub-circle { left: 20px; }
+    .blue .hub-circle { right: 20px; }
+
+    .hub-active {
+        background: white;
+    }
+
+    #center-circle {
+        position: absolute;
+        left: 50%;
+        top: -40px;
+        transform: translateX(-50%);
+        width: 180px;
+        height: 180px;
+        background: #ddd;
+        border-radius: 50%;
+        border: 3px solid #888;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        font-weight: bold;
+    }
+
+    #phase-time {
+        font-size: 48px;
+    }
+
+    #current-phase {
+        font-size: 16px;
+        margin-top: 6px;
+        color: #333;
+    }
+
+    #bottom-strip {
+        height: 70px;
+        background: #333;
+        color: white;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 32px;
+        font-weight: bold;
+        letter-spacing: 1px;
+        border-left: 1px solid #888;
+        border-right: 1px solid #888;
+        border-bottom: 1px solid #888;
+    }
+
+</style>
+</head>
+
+<body>
+
+<div id="scoreboard-wrapper">
+
+    <div id="scoreboard">
+        <div class="alliance red">
+            <div class="hub-circle" id="red-hub"></div>
+            <div class="score" id="red-score">0</div>
+        </div>
+
+        <div class="alliance blue">
+            <div class="score" id="blue-score">0</div>
+            <div class="hub-circle" id="blue-hub"></div>
+        </div>
+
+        <div id="center-circle">
+            <div id="phase-time">0:00</div>
+            <div id="current-phase">AUTO</div>
+        </div>
+
+    </div>
+
+    <div id="bottom-strip">
+        <span id="total-time">0:00</span>
+    </div>
+
+</div>
+
+<script>
+    const phaseTimeEl = document.getElementById("phase-time");
+    const totalTimeEl = document.getElementById("total-time");
+    const currentPhaseEl = document.getElementById("current-phase");
+    const redScoreEl = document.getElementById("red-score");
+    const blueScoreEl = document.getElementById("blue-score");
+    const redHubEl = document.getElementById("red-hub");
+    const blueHubEl = document.getElementById("blue-hub");
+
+    const ws = new WebSocket(`ws://${location.host}/ws`);
+
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        phaseTimeEl.textContent = data.time_left_in_phase;
+        totalTimeEl.textContent = data.total_time_left;
+        currentPhaseEl.textContent = data.current_phase;
+        redScoreEl.textContent = data.red_score;
+        blueScoreEl.textContent = data.blue_score;
+
+        redHubEl.classList.remove("hub-active");
+        blueHubEl.classList.remove("hub-active");
+
+        if (data.hub_active === "RED") {
+            redHubEl.classList.add("hub-active");
+        } else if (data.hub_active === "BLUE") {
+            blueHubEl.classList.add("hub-active");
+        } else if (data.hub_active === "BOTH") {
+            redHubEl.classList.add("hub-active");
+            blueHubEl.classList.add("hub-active");
+        }
+    };
+</script>
+
+</body>
+</html>
