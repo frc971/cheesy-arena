@@ -6,15 +6,33 @@ from pathlib import Path
 from urllib import request
 import asyncio
 import json
+import sys
 from nplc import NPLC
 
 app = FastAPI()
 
-red_url = "http://127.0.0.1:8000"
-blue_url = "http://127.0.0.1:8001"
-dashboard_url = "http://127.0.0.1:5001"
-nplc = NPLC(red_url, blue_url, timeout_sec=0.5)
+def parse_flags():
+    args = sys.argv[1:]
+    flags = {"red_url": "http://127.0.0.1:8000",
+             "blue_url": "http://127.0.0.1:8001",
+             "dashboard_url": "http://127.0.0.1:5001"}
+    for i in range(len(args)):
+        if args[i].startswith("--red_url") and i + 1 < len(args):
+            flags["red_url"] = args[i + 1]
+        elif args[i].startswith("--blue_url") and i + 1 < len(args):
+            flags["blue_url"] = args[i + 1]
+        elif args[i].startswith("--dashboard_url") and i + 1 < len(args):
+            flags["dashboard_url"] = args[i + 1]
+    return flags
 
+flags = parse_flags()
+red_url = flags["red_url"]
+blue_url = flags["blue_url"]
+dashboard_url = flags["dashboard_url"]
+
+print(f"Using URLs -> red: {red_url}, blue: {blue_url}, dashboard: {dashboard_url}")
+
+nplc = NPLC(red_url, blue_url, timeout_sec=0.5)
 
 def safe_hub_status(hub_name):
     try:
@@ -122,8 +140,5 @@ async def websocket_endpoint(ws: WebSocket):
 
 
 if __name__ == "__main__":
-    import os
     import uvicorn
-
-    port = int(os.environ.get("SCOREBOARD_PORT", "5000"))
-    uvicorn.run("nplc.scoreboard:app", host="127.0.0.1", port=port)
+    uvicorn.run("nplc.scoreboard:app", host="127.0.0.1", port=5000)
