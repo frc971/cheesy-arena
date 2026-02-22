@@ -48,6 +48,11 @@ async def get_match_state_async():
 async def get_show_final_async():
     return await asyncio.to_thread(get_show_final)
 
+# cached final scores when overlay is active; used to freeze visuals
+import threading
+_cached_final = {"red": None, "blue": None}
+_cached_lock = threading.Lock()
+
 
 @app.get("/")
 def serve_audience():
@@ -95,6 +100,19 @@ async def websocket_endpoint(ws: WebSocket):
             
             show_final = await get_show_final_async()
 
+            # manage cached frozen scores so the overlay shows a frozen result
+            with _cached_lock:
+                if show_final:
+                    if _cached_final["red"] is None:
+                        _cached_final["red"] = red_score
+                        _cached_final["blue"] = blue_score
+                else:
+                    _cached_final["red"] = None
+                    _cached_final["blue"] = None
+
+            final_red = _cached_final["red"] if _cached_final["red"] is not None else red_score
+            final_blue = _cached_final["blue"] if _cached_final["blue"] is not None else blue_score
+
             data = {
                 "total_time_left": format_time(time_left_total),
                 "current_phase": current_phase,
@@ -103,8 +121,8 @@ async def websocket_endpoint(ws: WebSocket):
                 "red_score": red_score,
                 "blue_score": blue_score,
                 "show_final": show_final,
-                "final_red": red_score,
-                "final_blue": blue_score,
+                "final_red": final_red,
+                "final_blue": final_blue,
             }
 
             await ws.send_text(json.dumps(data))
