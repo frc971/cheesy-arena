@@ -194,8 +194,6 @@ class Dashboard:
             if self.start_time is not None and 0 < self.paused_elapsed < resume_window:
                 self.start_time = time.time() - self.paused_elapsed
                 self.running = True
-                self._start_hub("red")
-                self._start_hub("blue")
                 self.last_message = "match resumed"
                 return
             self._start_game_locked()
