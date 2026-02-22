@@ -4,7 +4,7 @@ from fastapi import FastAPI
 import uvicorn
 
 class BallCounter:
-    def __init__(self, led_pin: int, input_pins: list[int], poll_interval: float = 0.1):
+    def __init__(self, led_pin: int, input_pins: list[int], poll_interval: float = 0.001):
         self.input_pins = input_pins
         self.poll_interval = poll_interval
         self.count = 0
