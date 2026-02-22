@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NPLC Match Control</title>
+<style>
+  body {
+    font-family: sans-serif;
+    margin: 16px;
+    line-height: 1.4;
+  }
+
+  h1, h2 {
+    margin: 0 0 10px;
+  }
+
+  section {
+    margin-bottom: 18px;
+  }
+
+  button, input {
+    margin: 3px;
+    padding: 6px 8px;
+    font-size: 14px;
+  }
+
+  .red {
+    color: #b00000;
+  }
+
+  .blue {
+    color: #003fb0;
+  }
+
+  .mono {
+    font-family: monospace;
+  }
+</style>
+</head>
+<body>
+  <h1>NPLC Match Control</h1>
+
+  <section>
+    <h2>Match</h2>
+    <button id="start-btn">Start Match</button>
+    <button id="stop-btn">Stop Match</button>
+    <button id="reset-btn">Reset Match</button>
+    <div id="last-message">Last action: idle</div>
+  </section>
+
+  <section>
+    <h2>Score</h2>
+    <div class="red">
+      Red:
+      <button id="red-minus">-1</button>
+      <button id="red-plus">+1</button>
+    </div>
+    <div class="blue">
+      Blue:
+      <button id="blue-minus">-1</button>
+      <button id="blue-plus">+1</button>
+    </div>
+    <div>
+      Set exact scores:
+      <input id="set-red" type="number" min="0" placeholder="Red">
+      <input id="set-blue" type="number" min="0" placeholder="Blue">
+      <button id="set-score-btn">Set Scores</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>State</h2>
+    <div class="mono">Running: <span id="running">false</span></div>
+    <div class="mono">Phase: <span id="phase">IDLE</span></div>
+    <div class="mono">Match Time Left: <span id="match-time">0</span></div>
+    <div class="mono">Phase Time Left: <span id="phase-time">0</span></div>
+    <div class="mono">Shift Active: <span id="shift-active">none</span></div>
+    <br>
+    <div class="mono red">Red Score: <span id="red-score">0</span></div>
+    <div class="mono red">Red Raw: <span id="red-raw">0</span></div>
+    <div class="mono red">Red Adjust: <span id="red-adjust">0</span></div>
+    <div class="mono red">Red State: <span id="red-state">stopped</span></div>
+    <br>
+    <div class="mono blue">Blue Score: <span id="blue-score">0</span></div>
+    <div class="mono blue">Blue Raw: <span id="blue-raw">0</span></div>
+    <div class="mono blue">Blue Adjust: <span id="blue-adjust">0</span></div>
+    <div class="mono blue">Blue State: <span id="blue-state">stopped</span></div>
+  </section>
+
+<script>
+  async function postJson(url, payload = {}) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    return response.json();
+  }
+
+  async function refreshState() {
+    try {
+      const response = await fetch("/api/state");
+      const state = await response.json();
+
+      document.getElementById("running").textContent = String(state.running ?? false);
+      document.getElementById("phase").textContent = state.phase ?? "IDLE";
+      document.getElementById("match-time").textContent = String(state.match_time_left ?? 0);
+      document.getElementById("phase-time").textContent = String(Math.max(0, Math.round(state.phase_time_left ?? 0)));
+      document.getElementById("shift-active").textContent = state.shift_active ?? "none";
+
+      document.getElementById("red-score").textContent = String(state.red_count ?? 0);
+      document.getElementById("red-raw").textContent = String(state.red_raw_count ?? 0);
+      document.getElementById("red-adjust").textContent = String(state.red_adjust ?? 0);
+      document.getElementById("red-state").textContent = state.red_state ?? "stopped";
+
+      document.getElementById("blue-score").textContent = String(state.blue_count ?? 0);
+      document.getElementById("blue-raw").textContent = String(state.blue_raw_count ?? 0);
+      document.getElementById("blue-adjust").textContent = String(state.blue_adjust ?? 0);
+      document.getElementById("blue-state").textContent = state.blue_state ?? "stopped";
+
+      document.getElementById("last-message").textContent = `Last action: ${state.last_message ?? "idle"}`;
+    } catch (err) {
+      document.getElementById("last-message").textContent = `Last action: state error (${err})`;
+    }
+  }
+
+  document.getElementById("start-btn").onclick = async () => {
+    await postJson("/api/match/start");
+    await refreshState();
+  };
+
+  document.getElementById("stop-btn").onclick = async () => {
+    await postJson("/api/match/stop");
+    await refreshState();
+  };
+
+  document.getElementById("reset-btn").onclick = async () => {
+    await postJson("/api/match/reset");
+    await refreshState();
+  };
+
+  document.getElementById("red-plus").onclick = async () => {
+    await postJson("/api/score/adjust", { hub: "red", delta: 1 });
+    await refreshState();
+  };
+
+  document.getElementById("red-minus").onclick = async () => {
+    await postJson("/api/score/adjust", { hub: "red", delta: -1 });
+    await refreshState();
+  };
+
+  document.getElementById("blue-plus").onclick = async () => {
+    await postJson("/api/score/adjust", { hub: "blue", delta: 1 });
+    await refreshState();
+  };
+
+  document.getElementById("blue-minus").onclick = async () => {
+    await postJson("/api/score/adjust", { hub: "blue", delta: -1 });
+    await refreshState();
+  };
+
+  document.getElementById("set-score-btn").onclick = async () => {
+    const red = Number(document.getElementById("set-red").value || 0);
+    const blue = Number(document.getElementById("set-blue").value || 0);
+    await postJson("/api/score/set", { red, blue });
+    await refreshState();
+  };
+
+  refreshState();
+  setInterval(refreshState, 300);
+</script>
+</body>
+</html>
