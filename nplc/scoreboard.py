@@ -1,27 +1,16 @@
 #!/usr/bin/env python3
 
+import argparse
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from pathlib import Path
 from urllib import request
 import asyncio
 import json
-from nplc import NPLC
 
 app = FastAPI()
 
-red_url = "http://127.0.0.1:8000"
-blue_url = "http://127.0.0.1:8001"
 dashboard_url = "http://127.0.0.1:5001"
-nplc = NPLC(red_url, blue_url, timeout_sec=0.5)
-
-
-def safe_hub_status(hub_name):
-    try:
-        status = nplc.get_hub_status(hub_name)
-        return status.get("count", 0), status.get("state", False)
-    except Exception:
-        return 0, False
 
 def get_match_state():
     """Get current match state from dashboard API."""
@@ -39,10 +28,6 @@ def format_time(seconds: float) -> str:
     secs = int(seconds) % 60
     return f"{minutes:02d}:{secs:02d}"
 
-
-async def safe_hub_status_async(hub_name):
-    return await asyncio.to_thread(safe_hub_status, hub_name)
-
 async def get_match_state_async():
     return await asyncio.to_thread(get_match_state)
 
@@ -57,17 +42,6 @@ async def websocket_endpoint(ws: WebSocket):
     print("WS connection attempt")
     await ws.accept()
     print("WS connection accepted")
-
-    phases = [
-        (20.0, "AUTO", "both"),
-        (30.0, "TRANSITION", "both"),
-        (55.0, "SHIFT 1", "single"),
-        (80.0, "SHIFT 2", "single"),
-        (105.0, "SHIFT 3", "single"),
-        (130.0, "SHIFT 4", "single"),
-        (160.0, "END GAME", "both"),
-    ]
-    total_game_time = phases[-1][0]
 
     try:
         while True:
@@ -85,16 +59,13 @@ async def websocket_endpoint(ws: WebSocket):
                 continue
 
             time_left_total = match_state.get("match_time_left", 0)
-            elapsed = match_state.get("elapsed", 0)
             current_phase = match_state.get("phase", "IDLE")
             time_left_in_phase = match_state.get("phase_time_left", 0)
 
-            red_task = safe_hub_status_async("red")
-            blue_task = safe_hub_status_async("blue")
-            (red_score, red_active), (blue_score, blue_active) = await asyncio.gather(red_task, blue_task)
-
-            blue_active = blue_active == "running"
-            red_active = red_active == "running"
+            red_score = int(match_state.get("red_count", 0) or 0)
+            blue_score = int(match_state.get("blue_count", 0) or 0)
+            red_active = str(match_state.get("red_state", "")).lower() == "running"
+            blue_active = str(match_state.get("blue_state", "")).lower() == "running"
 
             if red_active and blue_active:
                 hub_active = "BOTH"
@@ -125,5 +96,19 @@ if __name__ == "__main__":
     import os
     import uvicorn
 
-    port = int(os.environ.get("SCOREBOARD_PORT", "5000"))
-    uvicorn.run("nplc.scoreboard:app", host="127.0.0.1", port=port)
+    parser = argparse.ArgumentParser(description="Audience scoreboard for NPLC dashboard state.")
+    parser.add_argument(
+        "--dashboard-url",
+        default=os.environ.get("DASHBOARD_URL", "http://127.0.0.1:5001"),
+        help="Dashboard base URL (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("SCOREBOARD_PORT", "5000")),
+        help="Port for scoreboard web server (default: %(default)s)",
+    )
+    args = parser.parse_args()
+
+    dashboard_url = args.dashboard_url
+    uvicorn.run(app, host="127.0.0.1", port=args.port)

@@ -4,7 +4,7 @@ NPLC is a two-hub fuel counting and light control system for the FRC game 2026 r
 
 - `dashboard.py` is the control authority (match timing, hub activation logic, score adjustments).
 - Each hub runs an HTTP counter service (`dummy_pi.py` for dev, `raspi.py` on real hardware).
-- `scoreboard.py` serves the audience display (`scoreboard.html`) using dashboard state.
+- `scoreboard.py` serves the audience display (`scoreboard.html`) using dashboard state as the authoritative source (no direct hub/PI connections).
 
 ## File Map
 
@@ -40,10 +40,10 @@ uv run dummy_pi.py --port 8001 --rate 2
 uv run dashboard.py --red http://127.0.0.1:8000 --blue http://127.0.0.1:8001 --port 5001
 ```
 
-4. Start audience scoreboard:
+4. Start audience scoreboard (reads only from dashboard API):
 
 ```bash
-uv run uvicorn scoreboard:app --host 127.0.0.1 --port 5000 --reload
+uv run scoreboard.py --dashboard-url http://127.0.0.1:5001 --port 5000
 ```
 
 Open:
