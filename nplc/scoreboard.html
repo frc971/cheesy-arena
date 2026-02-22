@@ -152,17 +152,32 @@
     overlay.style.display = 'none';
     overlay.style.alignItems = 'center';
     overlay.style.justifyContent = 'center';
-    overlay.style.background = 'rgba(0,0,0,0.8)';
+    // solid black to fully obscure the scoreboard underneath
+    overlay.style.background = '#000';
     overlay.style.zIndex = '9999';
+    // Final overlay: two full-height halves (left=blue, right=red) styled like the reference image
+    overlay.style.display = 'none';
+    overlay.style.flexDirection = 'row';
+    overlay.style.padding = '0';
+    overlay.style.margin = '0';
+    overlay.style.width = '100vw';
+    overlay.style.height = '100vh';
+    overlay.style.background = '#000';
+    overlay.style.gap = '0';
     overlay.innerHTML = `
-      <div style="color:#f1c40f; font-size:5vmin; margin-bottom:8px; text-align:center;">
-        FINAL SCORE
-        <div style="display:flex; gap:60px; align-items:center; justify-content:center; margin-top:20px;">
-          <div style="text-align:center;"><div id="final-red" style="font-size:12vmin; color:#e74c3c">0</div><div style="color:#ccc; font-size:3vmin;">RED</div></div>
-          <div style="text-align:center;"><div id="final-blue" style="font-size:12vmin; color:#3498db">0</div><div style="color:#ccc; font-size:3vmin;">BLUE</div></div>
-        </div>
-      </div>`;
+      <div style="flex:1; min-height:100vh; display:flex; align-items:center; justify-content:center; flex-direction:column; background:#0f68a8;">
+        <div style="font-size:4vmin; color:rgba(255,255,255,0.95); font-weight:800; letter-spacing:4px; margin-bottom:4vmin; text-shadow:0 2px 6px rgba(0,0,0,0.5);">BLUE</div>
+        <div id="final-blue" style="color:#ffffff; font-weight:900; line-height:1; font-size:clamp(140px,28vw,420px); text-shadow:0 10px 24px rgba(0,0,0,0.5);">0</div>
+      </div>
+      <div style="flex:1; min-height:100vh; display:flex; align-items:center; justify-content:center; flex-direction:column; background:#a30b0b;">
+        <div style="font-size:4vmin; color:rgba(255,255,255,0.95); font-weight:800; letter-spacing:4px; margin-bottom:4vmin; text-shadow:0 2px 6px rgba(0,0,0,0.5);">RED</div>
+        <div id="final-red" style="color:#ffffff; font-weight:900; line-height:1; font-size:clamp(140px,28vw,420px); text-shadow:0 10px 24px rgba(0,0,0,0.5);">0</div>
+      </div>
+    `;
     document.body.appendChild(overlay);
+
+    // reference to the scoreboard wrapper so it can be hidden while final overlay is shown
+    const wrapper = document.getElementById('scoreboard-wrapper');
 
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
@@ -190,9 +205,17 @@
           if (data.show_final) {
             document.getElementById('final-red').textContent = data.final_red ?? data.red_score ?? 0;
             document.getElementById('final-blue').textContent = data.final_blue ?? data.blue_score ?? 0;
+            // ensure overlay fully black and visible
+            overlay.style.background = '#000';
             overlay.style.display = 'flex';
+            if (typeof wrapper !== 'undefined' && wrapper) {
+              wrapper.style.visibility = 'hidden';
+            }
           } else {
             overlay.style.display = 'none';
+            if (typeof wrapper !== 'undefined' && wrapper) {
+              wrapper.style.visibility = 'visible';
+            }
           }
         } catch (e) {
           console.error('Overlay error', e);
