@@ -29,6 +29,7 @@ class Dashboard:
 
         self.running = False
         self.start_time = None
+        self.paused_elapsed = 0.0
         self.shift1_active = None
         self.last_message = "idle"
 
@@ -180,15 +181,29 @@ class Dashboard:
         self.score_adjust = {"red": 0, "blue": 0}
         self.running = True
         self.start_time = time.time()
+        self.paused_elapsed = 0.0
         self.shift1_active = None
         self.last_message = "game started"
 
     def start_match(self):
         with self.control_lock:
+            resume_window = self.match_end + DEACTIVATION_GRACE_SEC
+            if self.running:
+                self.last_message = "match already running"
+                return
+            if self.start_time is not None and 0 < self.paused_elapsed < resume_window:
+                self.start_time = time.time() - self.paused_elapsed
+                self.running = True
+                self._start_hub("red")
+                self._start_hub("blue")
+                self.last_message = "match resumed"
+                return
             self._start_game_locked()
 
     def stop_match(self):
         with self.control_lock:
+            if self.running and self.start_time is not None:
+                self.paused_elapsed = max(0.0, time.time() - self.start_time)
             self.running = False
             self.stop_at = {"red": None, "blue": None}
             self._stop_hub("red")
@@ -202,6 +217,7 @@ class Dashboard:
             self.running = False
             self.shift1_active = None
             self.start_time = None
+            self.paused_elapsed = 0.0
             self.score_adjust = {"red": 0, "blue": 0}
             self._reset_hubs()
             self._set_hub_lights("red", False)
@@ -213,19 +229,31 @@ class Dashboard:
             self.score_adjust[hub] += int(delta)
             self.last_message = f"manual {hub} adjustment: {delta:+d}"
 
-    def set_score(self, red_target, blue_target):
+    def set_score(self, red_target=None, blue_target=None):
         with self.control_lock:
             red_raw = _safe_int(self._poll_status("red").get("count", 0))
             blue_raw = _safe_int(self._poll_status("blue").get("count", 0))
-            self.score_adjust["red"] = int(red_target) - red_raw
-            self.score_adjust["blue"] = int(blue_target) - blue_raw
-            self.last_message = "manual score set"
+            changed = []
+            if red_target is not None:
+                self.score_adjust["red"] = int(red_target) - red_raw
+                changed.append("red")
+            if blue_target is not None:
+                self.score_adjust["blue"] = int(blue_target) - blue_raw
+                changed.append("blue")
+
+            if not changed:
+                self.last_message = "manual score set skipped (no values)"
+            elif len(changed) == 2:
+                self.last_message = "manual score set"
+            else:
+                self.last_message = f"manual score set ({changed[0]})"
 
     def _tick(self):
         with self.control_lock:
             now = time.time()
             if self.running and self.start_time is not None:
                 elapsed = now - self.start_time
+                self.paused_elapsed = elapsed
                 desired, phase, phase_left, shift_active = self._desired_state(elapsed)
 
                 for hub in ("red", "blue"):
@@ -238,9 +266,11 @@ class Dashboard:
                 self._update_stops(now)
                 if elapsed >= self.match_end + DEACTIVATION_GRACE_SEC:
                     self.running = False
+                    self.start_time = None
+                    self.paused_elapsed = 0.0
                     self.last_message = "match complete"
             else:
-                elapsed = 0
+                elapsed = self.paused_elapsed
                 phase = "IDLE"
                 phase_left = 0
                 shift_active = "none"
@@ -354,8 +384,13 @@ def api_set_score(payload: dict):
     if dashboard is None:
         return {"ok": False, "error": "dashboard not initialized"}
 
-    red = _safe_int(payload.get("red", 0))
-    blue = _safe_int(payload.get("blue", 0))
+    has_red = "red" in payload
+    has_blue = "blue" in payload
+    if not has_red and not has_blue:
+        return {"ok": False, "error": "provide at least one of red or blue"}
+
+    red = _safe_int(payload["red"]) if has_red else None
+    blue = _safe_int(payload["blue"]) if has_blue else None
     dashboard.set_score(red, blue)
     return {"ok": True}
 

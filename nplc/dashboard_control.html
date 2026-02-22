@@ -6,7 +6,7 @@
 <title>NPLC Match Control</title>
 <style>
   body {
-    font-family: sans-serif;
+    font-family: monospace;
     margin: 16px;
     line-height: 1.4;
   }
@@ -32,10 +32,6 @@
   .blue {
     color: #003fb0;
   }
-
-  .mono {
-    font-family: monospace;
-  }
 </style>
 </head>
 <body>
@@ -51,15 +47,11 @@
 
   <section>
     <h2>Score</h2>
-    <div class="red">
-      Red:
-      <button id="red-minus">-1</button>
-      <button id="red-plus">+1</button>
-    </div>
-    <div class="blue">
-      Blue:
-      <button id="blue-minus">-1</button>
-      <button id="blue-plus">+1</button>
+    <div>
+      Set relative scores:
+      <input id="rel-red" type="number" placeholder="Red delta">
+      <input id="rel-blue" type="number" placeholder="Blue delta">
+      <button id="set-relative-btn">Apply Relative</button>
     </div>
     <div>
       Set exact scores:
@@ -71,21 +63,21 @@
 
   <section>
     <h2>State</h2>
-    <div class="mono">Running: <span id="running">false</span></div>
-    <div class="mono">Phase: <span id="phase">IDLE</span></div>
-    <div class="mono">Match Time Left: <span id="match-time">0</span></div>
-    <div class="mono">Phase Time Left: <span id="phase-time">0</span></div>
-    <div class="mono">Shift Active: <span id="shift-active">none</span></div>
+    <div >Running: <span id="running">false</span></div>
+    <div >Phase: <span id="phase">IDLE</span></div>
+    <div >Match Time Left: <span id="match-time">0</span></div>
+    <div >Phase Time Left: <span id="phase-time">0</span></div>
+    <div >Shift Active: <span id="shift-active">none</span></div>
     <br>
-    <div class="mono red">Red Score: <span id="red-score">0</span></div>
-    <div class="mono red">Red Raw: <span id="red-raw">0</span></div>
-    <div class="mono red">Red Adjust: <span id="red-adjust">0</span></div>
-    <div class="mono red">Red State: <span id="red-state">stopped</span></div>
+    <div >Red Score: <span id="red-score">0</span></div>
+    <div >Red Raw: <span id="red-raw">0</span></div>
+    <div >Red Adjust: <span id="red-adjust">0</span></div>
+    <div >Red State: <span id="red-state">stopped</span></div>
     <br>
-    <div class="mono blue">Blue Score: <span id="blue-score">0</span></div>
-    <div class="mono blue">Blue Raw: <span id="blue-raw">0</span></div>
-    <div class="mono blue">Blue Adjust: <span id="blue-adjust">0</span></div>
-    <div class="mono blue">Blue State: <span id="blue-state">stopped</span></div>
+    <div >Blue Score: <span id="blue-score">0</span></div>
+    <div >Blue Raw: <span id="blue-raw">0</span></div>
+    <div >Blue Adjust: <span id="blue-adjust">0</span></div>
+    <div >Blue State: <span id="blue-state">stopped</span></div>
   </section>
 
 <script>
@@ -140,30 +132,24 @@
     await refreshState();
   };
 
-  document.getElementById("red-plus").onclick = async () => {
-    await postJson("/api/score/adjust", { hub: "red", delta: 1 });
-    await refreshState();
-  };
-
-  document.getElementById("red-minus").onclick = async () => {
-    await postJson("/api/score/adjust", { hub: "red", delta: -1 });
-    await refreshState();
-  };
-
-  document.getElementById("blue-plus").onclick = async () => {
-    await postJson("/api/score/adjust", { hub: "blue", delta: 1 });
-    await refreshState();
-  };
-
-  document.getElementById("blue-minus").onclick = async () => {
-    await postJson("/api/score/adjust", { hub: "blue", delta: -1 });
+  document.getElementById("set-relative-btn").onclick = async () => {
+    const redDelta = Number(document.getElementById("rel-red").value || 0);
+    const blueDelta = Number(document.getElementById("rel-blue").value || 0);
+    await postJson("/api/score/adjust", { hub: "red", delta: redDelta });
+    await postJson("/api/score/adjust", { hub: "blue", delta: blueDelta });
     await refreshState();
   };
 
   document.getElementById("set-score-btn").onclick = async () => {
-    const red = Number(document.getElementById("set-red").value || 0);
-    const blue = Number(document.getElementById("set-blue").value || 0);
-    await postJson("/api/score/set", { red, blue });
+    const redValue = document.getElementById("set-red").value.trim();
+    const blueValue = document.getElementById("set-blue").value.trim();
+    const payload = {};
+    if (redValue !== "") payload.red = Number(redValue);
+    if (blueValue !== "") payload.blue = Number(blueValue);
+    if (Object.keys(payload).length === 0) {
+      return;
+    }
+    await postJson("/api/score/set", payload);
     await refreshState();
   };
 
