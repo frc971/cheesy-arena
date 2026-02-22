@@ -1,0 +1,97 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Match Over Display</title>
+  <style>
+    body { margin:0; font-family: Arial, Helvetica, sans-serif; background:#111; color:#fff; }
+    #container { display:flex; height:100vh; align-items:center; justify-content:space-around; }
+    .score { text-align:center; }
+    .team { font-size:8vmin; font-weight:700; }
+    .label { font-size:3vmin; color:#ccc; }
+    #overlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.75); }
+    #overlay .box { background:#222; border-radius:12px; padding:40px; text-align:center; }
+    #overlay .final { font-size:10vmin; font-weight:900; }
+    #control { position:fixed; top:12px; right:12px; }
+    button { padding:10px 16px; font-size:14px; }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div class="score">
+      <div class="label">RED</div>
+      <div id="red" class="team">0</div>
+    </div>
+    <div class="score">
+      <div class="label">MATCH</div>
+      <div id="phase" class="team">IDLE</div>
+    </div>
+    <div class="score">
+      <div class="label">BLUE</div>
+      <div id="blue" class="team">0</div>
+    </div>
+  </div>
+
+  <div id="overlay">
+    <div class="box">
+      <div style="color:#f1c40f; font-size:4vmin; margin-bottom:8px;">FINAL SCORE</div>
+      <div style="display:flex; gap:40px; align-items:center; justify-content:center;">
+        <div style="text-align:center;"><div style="font-size:6vmin; color:#e74c3c" id="final_red">0</div><div style="color:#ccc">RED</div></div>
+        <div style="text-align:center;"><div style="font-size:6vmin; color:#3498db" id="final_blue">0</div><div style="color:#ccc">BLUE</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="control" style="display:none;">
+    <button id="showBtn">Show Final</button>
+    <button id="hideBtn">Hide Final</button>
+  </div>
+
+<script>
+  const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host.replace(/:\d+$/, ':5002') + '/ws');
+  // Note: match_over is expected to run on port 5002 by default; adjust if needed.
+
+  const redEl = document.getElementById('red');
+  const blueEl = document.getElementById('blue');
+  const phaseEl = document.getElementById('phase');
+  const overlay = document.getElementById('overlay');
+  const finalRed = document.getElementById('final_red');
+  const finalBlue = document.getElementById('final_blue');
+  const control = document.getElementById('control');
+
+  ws.onmessage = (evt) => {
+    try {
+      const d = JSON.parse(evt.data);
+      redEl.textContent = d.red_score ?? d.final_red ?? 0;
+      blueEl.textContent = d.blue_score ?? d.final_blue ?? 0;
+      phaseEl.textContent = d.phase ?? '';
+
+      if (d.show_final) {
+        finalRed.textContent = d.final_red;
+        finalBlue.textContent = d.final_blue;
+        overlay.style.display = 'flex';
+      } else {
+        overlay.style.display = 'none';
+      }
+    } catch (e) {
+      console.error('Bad WS payload', e);
+    }
+  };
+
+  ws.onopen = () => console.log('WS open');
+  ws.onclose = () => console.log('WS closed');
+
+  // Show control UI if ?control=1 is in URL (referee)
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('control') === '1') {
+    control.style.display = 'block';
+    document.getElementById('showBtn').addEventListener('click', () => {
+      fetch('/api/show_final', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({show:true}) });
+    });
+    document.getElementById('hideBtn').addEventListener('click', () => {
+      fetch('/api/show_final', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({show:false}) });
+    });
+  }
+</script>
+</body>
+</html>

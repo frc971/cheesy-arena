@@ -145,6 +145,25 @@
 
     const ws = new WebSocket(`ws://${location.host}/ws`);
 
+    const overlay = document.createElement('div');
+    overlay.id = 'final-overlay';
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.display = 'none';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.background = 'rgba(0,0,0,0.8)';
+    overlay.style.zIndex = '9999';
+    overlay.innerHTML = `
+      <div style="color:#f1c40f; font-size:5vmin; margin-bottom:8px; text-align:center;">
+        FINAL SCORE
+        <div style="display:flex; gap:60px; align-items:center; justify-content:center; margin-top:20px;">
+          <div style="text-align:center;"><div id="final-red" style="font-size:12vmin; color:#e74c3c">0</div><div style="color:#ccc; font-size:3vmin;">RED</div></div>
+          <div style="text-align:center;"><div id="final-blue" style="font-size:12vmin; color:#3498db">0</div><div style="color:#ccc; font-size:3vmin;">BLUE</div></div>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
 
@@ -164,6 +183,19 @@
         } else if (data.hub_active === "BOTH") {
             redHubEl.classList.add("hub-active");
             blueHubEl.classList.add("hub-active");
+        }
+
+        // Match-over overlay handling
+        try {
+          if (data.show_final) {
+            document.getElementById('final-red').textContent = data.final_red ?? data.red_score ?? 0;
+            document.getElementById('final-blue').textContent = data.final_blue ?? data.blue_score ?? 0;
+            overlay.style.display = 'flex';
+          } else {
+            overlay.style.display = 'none';
+          }
+        } catch (e) {
+          console.error('Overlay error', e);
         }
     };
 </script>

@@ -23,6 +23,20 @@ def get_match_state():
         print(f"Error getting match state from dashboard: {e}")
         return None
 
+
+def get_show_final():
+    """Query dashboard for whether final display should be shown."""
+    try:
+        req = request.Request(f"{dashboard_url}/api/display", method="GET")
+        with request.urlopen(req, timeout=0.5) as response:
+            payload = response.read().decode("utf-8")
+            j = json.loads(payload) if payload else {}
+            return bool(j.get("show_final", False))
+    except Exception as e:
+        print(f"Error getting display state from dashboard: {e}")
+        return False
+
+
 def format_time(seconds: float) -> str:
     minutes = int(seconds) // 60
     secs = int(seconds) % 60
@@ -30,6 +44,9 @@ def format_time(seconds: float) -> str:
 
 async def get_match_state_async():
     return await asyncio.to_thread(get_match_state)
+
+async def get_show_final_async():
+    return await asyncio.to_thread(get_show_final)
 
 
 @app.get("/")
@@ -76,13 +93,18 @@ async def websocket_endpoint(ws: WebSocket):
             else:
                 hub_active = "NONE"
             
+            show_final = await get_show_final_async()
+
             data = {
                 "total_time_left": format_time(time_left_total),
                 "current_phase": current_phase,
                 "time_left_in_phase": format_time(time_left_in_phase),
                 "hub_active": hub_active,
                 "red_score": red_score,
-                "blue_score": blue_score
+                "blue_score": blue_score,
+                "show_final": show_final,
+                "final_red": red_score,
+                "final_blue": blue_score,
             }
 
             await ws.send_text(json.dumps(data))
