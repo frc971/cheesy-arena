@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from typing import Optional
 from pathlib import Path
 from urllib import request
 import asyncio
@@ -33,6 +35,47 @@ dashboard_url = flags["dashboard_url"]
 print(f"Using URLs -> red: {red_url}, blue: {blue_url}, dashboard: {dashboard_url}")
 
 nplc = NPLC(red_url, blue_url, timeout_sec=0.5)
+
+score_override = None
+override_lock = asyncio.Lock()
+
+
+class ScoreOverride(BaseModel):
+    red_score: Optional[int] = None
+    blue_score: Optional[int] = None
+
+
+@app.post("/override_score")
+async def set_override(override: ScoreOverride):
+    """Set an override for red and/or blue scores. Provide at least one field."""
+    global score_override
+    if override.red_score is None and override.blue_score is None:
+        raise HTTPException(status_code=400, detail="Provide red_score or blue_score")
+
+    async with override_lock:
+        current = (score_override or {}).copy()
+        if override.red_score is not None:
+            current["red_score"] = override.red_score
+        if override.blue_score is not None:
+            current["blue_score"] = override.blue_score
+        score_override = current
+
+    return {"override": score_override}
+
+
+@app.get("/override_score")
+async def get_override():
+    async with override_lock:
+        return {"override": score_override}
+
+
+@app.delete("/override_score")
+async def clear_override():
+
+    global score_override
+    async with override_lock:
+        score_override = None
+    return {"status": "cleared"}
 
 def safe_hub_status(hub_name):
     try:
@@ -123,13 +166,24 @@ async def websocket_endpoint(ws: WebSocket):
             else:
                 hub_active = "NONE"
             
+            # If an override is set, use those scores regardless of hub status.
+            override_active = False
+            async with override_lock:
+                if score_override is not None:
+                    override_active = True
+                    if score_override.get("red_score") is not None:
+                        red_score = score_override.get("red_score")
+                    if score_override.get("blue_score") is not None:
+                        blue_score = score_override.get("blue_score")
+
             data = {
                 "total_time_left": format_time(time_left_total),
                 "current_phase": current_phase,
                 "time_left_in_phase": format_time(time_left_in_phase),
                 "hub_active": hub_active,
                 "red_score": red_score,
-                "blue_score": blue_score
+                "blue_score": blue_score,
+                "override_active": override_active
             }
 
             await ws.send_text(json.dumps(data))
