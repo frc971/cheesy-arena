@@ -403,7 +403,7 @@ def main():
     parser.add_argument("--blue", required=True, help="Blue hub base URL, e.g. http://10.0.0.11:8000")
     parser.add_argument("--rate", type=float, default=5.0, help="Polling rate in Hz (default: 5)")
     parser.add_argument("--timeout", type=float, default=2.0, help="HTTP timeout in seconds (default: 2)")
-    parser.add_argument("--api-port", type=int, default=5001, help="Port for web/API (default: 5001)")
+    parser.add_argument("--port", type=int, default=5001, help="Port for web/API (default: 5001)")
     args = parser.parse_args()
 
     dashboard = Dashboard(args.red, args.blue, args.rate, args.timeout)
@@ -411,7 +411,11 @@ def main():
     tick_thread = threading.Thread(target=dashboard.run_forever, daemon=True)
     tick_thread.start()
 
-    uvicorn.run(api, host="0.0.0.0", port=args.api_port, log_level="error")
+    print(f"NPLC dashboard control: http://127.0.0.1:{args.port}/")
+    print(f"NPLC dashboard state:   http://127.0.0.1:{args.port}/match/state")
+    print("Press Ctrl+C to stop.")
+
+    uvicorn.run(api, host="0.0.0.0", port=args.port, log_level="error")
 
 
 if __name__ == "__main__":

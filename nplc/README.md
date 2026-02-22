@@ -1,14 +1,16 @@
 # NPLC (Network PLC) Fuel Counter
 
-This folder contains a lightweight, networked fuel counter system for two hubs (red and blue). The FMS-side tools connect to two Raspberry Pis over HTTP and start/stop counting based on match timing rules.
+This folder contains a lightweight, networked fuel counter system for two hubs (red and blue). The central web dashboard runs match timing/rules, controls hub counting, and supports manual score adjustments.
 
 **Key files**
 
 - `nplc/nplc.py` HTTP client for hub control and status.
-- `nplc/dashboard.py` Match-timed dashboard that starts/stops counting based on the game rules.
-- `nplc/display.py` Manual control display for starting/stopping/resetting hubs.
+- `nplc/dashboard.py` Central web dashboard + API for match control and score adjustments.
+- `nplc/dashboard_control.html` Simple control page served by `dashboard.py`.
 - `nplc/dummy_pi.py` Local dummy server to simulate a hub.
 - `nplc/raspi.py` Real Pi server (FastAPI + GPIO).
+- `nplc/scoreboard.py` Audience scoreboard backend (WebSocket feed).
+- `nplc/scoreboard.html` Audience scoreboard frontend.
 - `nplc/docs/fuel-counter-http-contract.md` HTTP API contract.
 - `nplc/docs/game-counting-requirements.md` Timing rules for counting.
 
@@ -22,33 +24,36 @@ uv run dummy_pi.py --port 8000 --rate 3
 uv run dummy_pi.py --port 8001 --rate 2
 ```
 
-2. Start the match dashboard in a third terminal:
+2. Start the web dashboard in a third terminal:
 
 ```bash
 uv run dashboard.py --red http://127.0.0.1:8000 --blue http://127.0.0.1:8001
 ```
 
-3. The game auto-starts on launch. Press `Ctrl+C` to quit the dashboard.
+3. Open the control page:
+
+- `http://127.0.0.1:5001/`
+
+4. Start/stop/reset the match and set relative/exact scores from the page.
+
+5. On startup, `dashboard.py` prints links like:
+
+```text
+NPLC dashboard control: http://127.0.0.1:5001/
+NPLC dashboard state:   http://127.0.0.1:5001/match/state
+```
 
 **Webpage dashboard**
-The webpage is display-only (no game logic).
-Game logic runs on the Pi instances.
-The dashboard controls the match state.
+The audience scoreboard webpage is display-only. Match/game logic lives in `dashboard.py`.
 
-1. Start the game webpage display in a seperate 4th terminal alongside the dashboard, and 2 dummy pi's
+1. Start the audience scoreboard in a separate terminal:
 
 ```bash
 uv run uvicorn scoreboard:app --host 127.0.0.1 --port 5000 --reload
 ```
 
-- This should be the same as real life except you would change the hosts and port to be the real life configuration instead
-
-**Manual control display (optional)**
-Use this if you want manual start/stop/reset controls instead of match timing:
-
-```bash
-uv run display.py --red http://127.0.0.1:8000 --blue http://127.0.0.1:8001
-```
+2. Open:
+- `http://127.0.0.1:5000/`
 
 **Running on real Raspberry Pis**
 
@@ -66,7 +71,7 @@ uv run -m pip install fastapi uvicorn
 uv run nplc/raspi.py
 ```
 
-5. Point the dashboard or display at each Pi's IP address.
+5. Point the dashboard at each Pi's IP address.
 
 **Dashboard behavior (ball counting only)**
 
