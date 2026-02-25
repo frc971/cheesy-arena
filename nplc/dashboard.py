@@ -11,6 +11,7 @@ import uvicorn
 from nplc import NPLC
 
 DEACTIVATION_GRACE_SEC = 3.0
+STATUS_POLL_MAX_HZ = 10.0
 
 
 def _safe_int(value, default=0):
@@ -24,6 +25,7 @@ class Dashboard:
     def __init__(self, red_url, blue_url, rate_hz, timeout_sec):
         self.nplc = NPLC(red_url, blue_url, timeout_sec=timeout_sec)
         self.sleep_s = 1.0 / max(rate_hz, 0.1)
+        self.status_poll_sleep_s = 1.0 / STATUS_POLL_MAX_HZ
         self.timeline = self._build_timeline()
         self.match_end = self.timeline[-1][0]
 
@@ -43,6 +45,11 @@ class Dashboard:
 
         self.control_lock = threading.Lock()
         self.match_state_lock = threading.Lock()
+        self.status_cache_lock = threading.Lock()
+        self.status_cache = {
+            "red": {"count": 0, "state": "stopped"},
+            "blue": {"count": 0, "state": "stopped"},
+        }
         self.match_state = {
             "running": False,
             "elapsed": 0,
@@ -129,11 +136,11 @@ class Dashboard:
 
     def _choose_shift1_active(self):
         try:
-            red_status = self.nplc.get_hub_status("red")
-            blue_status = self.nplc.get_hub_status("blue")
+            red_status = self._get_cached_status("red")
+            blue_status = self._get_cached_status("blue")
             red_auto = _safe_int(red_status.get("count", 0))
             blue_auto = _safe_int(blue_status.get("count", 0))
-        except RuntimeError as exc:
+        except Exception as exc:
             self.last_message = f"error reading auto counts: {exc}"
             red_auto = 0
             blue_auto = 0
@@ -173,6 +180,57 @@ class Dashboard:
             return self.nplc.get_hub_status(hub)
         except RuntimeError as exc:
             return {"count": 0, "state": str(exc)}
+
+    def _get_cached_status(self, hub):
+        with self.status_cache_lock:
+            return dict(self.status_cache[hub])
+
+    def _set_cached_status(self, hub, status):
+        with self.status_cache_lock:
+            self.status_cache[hub] = dict(status)
+
+    def _compute_live_timing(self, now=None):
+        if now is None:
+            now = time.time()
+
+        start_time = self.start_time
+        paused_elapsed = self.paused_elapsed
+        running = bool(self.running and start_time is not None)
+
+        if running:
+            elapsed = max(0.0, now - start_time)
+        else:
+            elapsed = max(0.0, float(paused_elapsed or 0.0))
+
+        phase = "IDLE"
+        phase_left = 0.0
+        shift_active = "none"
+
+        if running:
+            for idx, (end, phase_name, mode) in enumerate(self.timeline):
+                if elapsed < end:
+                    phase = phase_name
+                    phase_left = max(0.0, end - elapsed)
+                    if mode == "both":
+                        shift_active = "both"
+                    elif self.shift1_active is None:
+                        shift_active = "pending"
+                    else:
+                        shift_active = self._active_for_shift(idx - 1)
+                    break
+            else:
+                phase = "POST"
+                phase_left = 0.0
+                shift_active = "none"
+
+        return {
+            "running": running,
+            "elapsed": elapsed,
+            "match_time_left": max(0, int(round(self.match_end - elapsed))),
+            "phase": phase,
+            "phase_time_left": phase_left,
+            "shift_active": shift_active,
+        }
 
     def _start_game_locked(self):
         self._reset_hubs()
@@ -229,8 +287,8 @@ class Dashboard:
 
     def set_score(self, red_target=None, blue_target=None):
         with self.control_lock:
-            red_raw = _safe_int(self._poll_status("red").get("count", 0))
-            blue_raw = _safe_int(self._poll_status("blue").get("count", 0))
+            red_raw = _safe_int(self._get_cached_status("red").get("count", 0))
+            blue_raw = _safe_int(self._get_cached_status("blue").get("count", 0))
             changed = []
             if red_target is not None:
                 self.score_adjust["red"] = int(red_target) - red_raw
@@ -276,8 +334,8 @@ class Dashboard:
                 self._set_hub_lights("red", False)
                 self._set_hub_lights("blue", False)
 
-            red_status = self._poll_status("red")
-            blue_status = self._poll_status("blue")
+            red_status = self._get_cached_status("red")
+            blue_status = self._get_cached_status("blue")
 
             red_raw = _safe_int(red_status.get("count", 0))
             blue_raw = _safe_int(blue_status.get("count", 0))
@@ -311,6 +369,11 @@ class Dashboard:
         while True:
             self._tick()
             time.sleep(self.sleep_s)
+
+    def run_status_poller(self, hub):
+        while True:
+            self._set_cached_status(hub, self._poll_status(hub))
+            time.sleep(self.status_poll_sleep_s)
 
 
 # Global dashboard instance for HTTP API.
@@ -353,7 +416,9 @@ def get_match_state():
     if dashboard is None:
         return {"error": "Dashboard not initialized"}
     with dashboard.match_state_lock:
-        return dashboard.match_state.copy()
+        state = dashboard.match_state.copy()
+    state.update(dashboard._compute_live_timing())
+    return state
 
 
 @api.get("/api/state")
@@ -430,6 +495,8 @@ def main():
 
     tick_thread = threading.Thread(target=dashboard.run_forever, daemon=True)
     tick_thread.start()
+    threading.Thread(target=dashboard.run_status_poller, args=("red",), daemon=True).start()
+    threading.Thread(target=dashboard.run_status_poller, args=("blue",), daemon=True).start()
 
     print(f"NPLC dashboard control: http://127.0.0.1:{args.port}/")
     print(f"NPLC dashboard state:   http://127.0.0.1:{args.port}/match/state")
