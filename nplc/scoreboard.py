@@ -23,6 +23,20 @@ def get_match_state():
         print(f"Error getting match state from dashboard: {e}")
         return None
 
+
+def get_show_final():
+    """Query dashboard for whether final display should be shown."""
+    try:
+        req = request.Request(f"{dashboard_url}/api/display", method="GET")
+        with request.urlopen(req, timeout=0.5) as response:
+            payload = response.read().decode("utf-8")
+            j = json.loads(payload) if payload else {}
+            return bool(j.get("show_final", False))
+    except Exception as e:
+        print(f"Error getting display state from dashboard: {e}")
+        return False
+
+
 def format_time(seconds: float) -> str:
     minutes = int(seconds) // 60
     secs = int(seconds) % 60
@@ -30,6 +44,14 @@ def format_time(seconds: float) -> str:
 
 async def get_match_state_async():
     return await asyncio.to_thread(get_match_state)
+
+async def get_show_final_async():
+    return await asyncio.to_thread(get_show_final)
+
+# cached final scores when overlay is active; used to freeze visuals
+import threading
+_cached_final = {"red": None, "blue": None}
+_cached_lock = threading.Lock()
 
 
 @app.get("/")
@@ -76,13 +98,31 @@ async def websocket_endpoint(ws: WebSocket):
             else:
                 hub_active = "NONE"
             
+            show_final = await get_show_final_async()
+
+            # manage cached frozen scores so the overlay shows a frozen result
+            with _cached_lock:
+                if show_final:
+                    if _cached_final["red"] is None:
+                        _cached_final["red"] = red_score
+                        _cached_final["blue"] = blue_score
+                else:
+                    _cached_final["red"] = None
+                    _cached_final["blue"] = None
+
+            final_red = _cached_final["red"] if _cached_final["red"] is not None else red_score
+            final_blue = _cached_final["blue"] if _cached_final["blue"] is not None else blue_score
+
             data = {
                 "total_time_left": format_time(time_left_total),
                 "current_phase": current_phase,
                 "time_left_in_phase": format_time(time_left_in_phase),
                 "hub_active": hub_active,
                 "red_score": red_score,
-                "blue_score": blue_score
+                "blue_score": blue_score,
+                "show_final": show_final,
+                "final_red": final_red,
+                "final_blue": final_blue,
             }
 
             await ws.send_text(json.dumps(data))

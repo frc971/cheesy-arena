@@ -383,6 +383,28 @@ dashboard = None
 api = FastAPI()
 
 
+# Match-over display flag (controlled from dashboard control UI)
+display_lock = threading.Lock()
+display_show_final = False
+
+
+@api.post("/api/display/show")
+def api_display_show(payload: dict):
+    global display_show_final
+    if dashboard is None:
+        return {"ok": False, "error": "dashboard not initialized"}
+    show = bool(payload.get("show", True))
+    with display_lock:
+        display_show_final = show
+    return {"ok": True, "show_final": display_show_final}
+
+
+@api.get("/api/display")
+def api_display_get():
+    with display_lock:
+        return {"show_final": display_show_final}
+
+
 @api.get("/")
 def control_page():
     html_path = Path(__file__).parent / "dashboard_control.html"

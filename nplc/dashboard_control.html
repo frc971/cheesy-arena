@@ -62,6 +62,13 @@
   </section>
 
   <section>
+    <h2>Audience Display</h2>
+    <button id="show-final-btn">Show Final Display</button>
+    <button id="hide-final-btn">Hide Final Display</button>
+    <div id="display-status">Display: unknown</div>
+  </section>
+
+  <section>
     <h2>State</h2>
     <div >Running: <span id="running">false</span></div>
     <div >Phase: <span id="phase">IDLE</span></div>
@@ -152,6 +159,29 @@
     await postJson("/api/score/set", payload);
     await refreshState();
   };
+
+  // Hook up match-over display controls
+  document.getElementById("show-final-btn").onclick = async () => {
+    try {
+      await postJson('/api/display/show', { show: true });
+      document.getElementById("display-status").textContent = 'Display: shown';
+    } catch (e) { console.error(e); document.getElementById("display-status").textContent = 'Display: error'; }
+  };
+  document.getElementById("hide-final-btn").onclick = async () => {
+    try {
+      await postJson('/api/display/show', { show: false });
+      document.getElementById("display-status").textContent = 'Display: hidden';
+    } catch (e) { console.error(e); document.getElementById("display-status").textContent = 'Display: error'; }
+  };
+
+  // Initial display status
+  (async () => {
+    try {
+      const r = await fetch('/api/display');
+      const j = await r.json();
+      document.getElementById("display-status").textContent = 'Display: ' + (j.show_final ? 'shown' : 'hidden');
+    } catch (e) { /* ignore */ }
+  })();
 
   refreshState();
   setInterval(refreshState, 300);
