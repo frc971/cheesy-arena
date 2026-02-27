@@ -41,7 +41,6 @@ class Dashboard:
 
         self.hub_active = {"red": False, "blue": False}
         self.hub_lights_on = {"red": False, "blue": False}
-        self.light_control_supported = {"red": True, "blue": True}
         self.stop_at = {"red": None, "blue": None}
         self.command_retry_at = {"red": 0.0, "blue": 0.0}
         self.command_in_flight = {"red": False, "blue": False}
@@ -154,8 +153,6 @@ class Dashboard:
         self._dispatch_hub_command("blue", "resetting", self.nplc.reset_hub_count, now)
 
     def _set_hub_lights(self, hub, on, now):
-        if not self.light_control_supported[hub]:
-            return
         if self.hub_lights_on[hub] == on:
             return
         fn = self.nplc.turn_hub_lights_on if on else self.nplc.turn_hub_lights_off
@@ -164,9 +161,8 @@ class Dashboard:
             self.hub_lights_on[hub] = on
 
         def _light_failure(exc, failure_now):
-            self.light_control_supported[hub] = False
             self._mark_command_failure(hub, "setting lights for", exc, failure_now)
-            self.last_message = f"warning: {hub} lights endpoint unavailable: {exc}"
+            self.last_message = f"warning: {hub} lights command failed (will retry): {exc}"
 
         self._dispatch_hub_command(
             hub,
