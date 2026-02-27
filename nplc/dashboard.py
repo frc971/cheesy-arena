@@ -1,4 +1,5 @@
 import argparse
+import concurrent.futures
 import random
 import threading
 import time
@@ -93,14 +94,65 @@ class Dashboard:
         except RuntimeError as exc:
             self.last_message = f"error stopping {hub}: {exc}"
 
+    def _run_parallel(self, actions):
+        if not actions:
+            return []
+        if len(actions) == 1:
+            fn, *args = actions[0]
+            try:
+                fn(*args)
+                return []
+            except Exception as exc:
+                return [exc]
+
+        errors = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(actions)) as pool:
+            futures = [pool.submit(fn, *args) for fn, *args in actions]
+            for future in futures:
+                try:
+                    future.result()
+                except Exception as exc:
+                    errors.append(exc)
+        return errors
+
+    def _start_both_hubs(self):
+        errors = self._run_parallel([
+            (self.nplc.start_hub_counting, "red"),
+            (self.nplc.start_hub_counting, "blue"),
+        ])
+        if not errors:
+            self.hub_active["red"] = True
+            self.hub_active["blue"] = True
+            return
+        self.hub_active["red"] = False
+        self.hub_active["blue"] = False
+        self.last_message = f"error starting hubs: {errors[0]}"
+
+    def _stop_both_hubs(self):
+        errors = self._run_parallel([
+            (self.nplc.stop_hub_counting, "red"),
+            (self.nplc.stop_hub_counting, "blue"),
+        ])
+        if not errors:
+            self.hub_active["red"] = False
+            self.hub_active["blue"] = False
+            return
+        self.last_message = f"error stopping hubs: {errors[0]}"
+
     def _reset_hubs(self):
         try:
-            self.nplc.reset_hub_count("red")
-            self.nplc.reset_hub_count("blue")
+            errors = self._run_parallel([
+                (self.nplc.reset_hub_count, "red"),
+                (self.nplc.reset_hub_count, "blue"),
+            ])
+            if errors:
+                raise errors[0]
             self.hub_active = {"red": False, "blue": False}
             self.hub_lights_on = {"red": False, "blue": False}
             self.stop_at = {"red": None, "blue": None}
         except RuntimeError as exc:
+            self.last_message = f"error resetting hubs: {exc}"
+        except Exception as exc:
             self.last_message = f"error resetting hubs: {exc}"
 
     def _set_hub_lights(self, hub, on):
@@ -117,6 +169,29 @@ class Dashboard:
         except RuntimeError as exc:
             self.light_control_supported[hub] = False
             self.last_message = f"warning: {hub} lights endpoint unavailable: {exc}"
+
+    def _set_both_lights(self, on):
+        targets = []
+        for hub in ("red", "blue"):
+            if not self.light_control_supported[hub]:
+                continue
+            if self.hub_lights_on[hub] == on:
+                continue
+            fn = self.nplc.turn_hub_lights_on if on else self.nplc.turn_hub_lights_off
+            targets.append((hub, fn))
+
+        if not targets:
+            return
+
+        errors = self._run_parallel([(fn, hub) for hub, fn in targets])
+        if not errors:
+            for hub, _ in targets:
+                self.hub_lights_on[hub] = on
+            return
+
+        for hub, _ in targets:
+            self.light_control_supported[hub] = False
+        self.last_message = f"warning: lights endpoint unavailable: {errors[0]}"
 
     def _schedule_stop(self, hub, now):
         if self.hub_active[hub] and self.stop_at[hub] is None:
@@ -234,8 +309,7 @@ class Dashboard:
 
     def _start_game_locked(self):
         self._reset_hubs()
-        self._start_hub("red")
-        self._start_hub("blue")
+        self._start_both_hubs()
         self.score_adjust = {"red": 0, "blue": 0}
         self.running = True
         self.start_time = time.time()
@@ -262,10 +336,8 @@ class Dashboard:
                 self.paused_elapsed = max(0.0, time.time() - self.start_time)
             self.running = False
             self.stop_at = {"red": None, "blue": None}
-            self._stop_hub("red")
-            self._stop_hub("blue")
-            self._set_hub_lights("red", False)
-            self._set_hub_lights("blue", False)
+            self._stop_both_hubs()
+            self._set_both_lights(False)
             self.last_message = "match stopped"
 
     def reset_match(self):
@@ -276,8 +348,7 @@ class Dashboard:
             self.paused_elapsed = 0.0
             self.score_adjust = {"red": 0, "blue": 0}
             self._reset_hubs()
-            self._set_hub_lights("red", False)
-            self._set_hub_lights("blue", False)
+            self._set_both_lights(False)
             self.last_message = "match reset"
 
     def adjust_score(self, hub, delta):
