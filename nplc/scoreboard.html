@@ -52,10 +52,11 @@
         border-radius: 50%;
         border: 3px solid white;
         background: transparent;
+        z-index: 2;
     }
 
-    .red .hub-circle { left: 20px; }
-    .blue .hub-circle { right: 20px; }
+    .blue .hub-circle { left: 20px; }
+    .red .hub-circle { right: 20px; }
 
     .hub-active {
         background: white;
@@ -76,6 +77,7 @@
         justify-content: center;
         align-items: center;
         font-weight: bold;
+        z-index: 1;
     }
 
     #phase-time {
@@ -111,14 +113,14 @@
 <div id="scoreboard-wrapper">
 
     <div id="scoreboard">
-        <div class="alliance red">
-            <div class="hub-circle" id="red-hub"></div>
-            <div class="score" id="red-score">0</div>
+        <div class="alliance blue">
+            <div class="hub-circle" id="blue-hub"></div>
+            <div class="score" id="blue-score">0</div>
         </div>
 
-        <div class="alliance blue">
-            <div class="score" id="blue-score">0</div>
-            <div class="hub-circle" id="blue-hub"></div>
+        <div class="alliance red">
+            <div class="score" id="red-score">0</div>
+            <div class="hub-circle" id="red-hub"></div>
         </div>
 
         <div id="center-circle">
