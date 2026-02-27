@@ -29,6 +29,7 @@ class Dashboard:
         self.command_retry_backoff_s = max(self.command_timeout_s, 1.0)
         self.sleep_s = 1.0 / max(rate_hz, 0.1)
         self.status_poll_sleep_s = 1.0 / STATUS_POLL_MAX_HZ
+        self.command_executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
         self.timeline = self._build_timeline()
         self.match_end = self.timeline[-1][0]
 
@@ -43,11 +44,12 @@ class Dashboard:
         self.light_control_supported = {"red": True, "blue": True}
         self.stop_at = {"red": None, "blue": None}
         self.command_retry_at = {"red": 0.0, "blue": 0.0}
+        self.command_in_flight = {"red": False, "blue": False}
 
         # Manual offsets applied on top of raw hub counts.
         self.score_adjust = {"red": 0, "blue": 0}
 
-        self.control_lock = threading.Lock()
+        self.control_lock = threading.RLock()
         self.match_state_lock = threading.Lock()
         self.status_cache_lock = threading.Lock()
         self.status_cache = {
@@ -84,7 +86,7 @@ class Dashboard:
         ]
 
     def _command_ready(self, hub, now):
-        return now >= self.command_retry_at[hub]
+        return (not self.command_in_flight[hub]) and now >= self.command_retry_at[hub]
 
     def _mark_command_failure(self, hub, action, exc, now):
         self.command_retry_at[hub] = now + self.command_retry_backoff_s
@@ -93,128 +95,94 @@ class Dashboard:
             f"(retry after {self.command_retry_backoff_s:.1f}s)"
         )
 
-    def _start_hub(self, hub, now):
+    def _dispatch_hub_command(self, hub, action, fn, now, on_success=None, on_failure=None):
         if not self._command_ready(hub, now):
             return
-        try:
-            self.nplc.start_hub_counting(hub)
-            self.hub_active[hub] = True
-        except RuntimeError as exc:
-            self._mark_command_failure(hub, "starting", exc, now)
+        self.command_in_flight[hub] = True
+
+        future = self.command_executor.submit(fn, hub)
+
+        def _done(done_future):
+            with self.control_lock:
+                self.command_in_flight[hub] = False
+                try:
+                    done_future.result()
+                except Exception as exc:
+                    failure_now = time.time()
+                    if on_failure is not None:
+                        on_failure(exc, failure_now)
+                    else:
+                        self._mark_command_failure(hub, action, exc, failure_now)
+                    return
+
+                self.command_retry_at[hub] = 0.0
+                if on_success is not None:
+                    on_success()
+
+        future.add_done_callback(_done)
+
+    def _start_hub(self, hub, now):
+        self._dispatch_hub_command(
+            hub,
+            "starting",
+            self.nplc.start_hub_counting,
+            now,
+            on_success=lambda: self.hub_active.__setitem__(hub, True),
+        )
 
     def _stop_hub(self, hub, now):
-        if not self._command_ready(hub, now):
-            # Keep local timing correct and avoid repeated stop retries stretching phase transitions.
-            self.hub_active[hub] = False
-            return
-        try:
-            self.nplc.stop_hub_counting(hub)
-            self.hub_active[hub] = False
-        except RuntimeError as exc:
-            self.hub_active[hub] = False
-            self._mark_command_failure(hub, "stopping", exc, now)
-
-    def _run_parallel(self, actions):
-        if not actions:
-            return []
-        if len(actions) == 1:
-            fn, *args = actions[0]
-            try:
-                fn(*args)
-                return []
-            except Exception as exc:
-                return [exc]
-
-        errors = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(actions)) as pool:
-            futures = [pool.submit(fn, *args) for fn, *args in actions]
-            for future in futures:
-                try:
-                    future.result()
-                except Exception as exc:
-                    errors.append(exc)
-        return errors
+        # Keep local timing correct and avoid retries stretching phase transitions.
+        self.hub_active[hub] = False
+        self._dispatch_hub_command(hub, "stopping", self.nplc.stop_hub_counting, now)
 
     def _start_both_hubs(self):
-        errors = self._run_parallel([
-            (self.nplc.start_hub_counting, "red"),
-            (self.nplc.start_hub_counting, "blue"),
-        ])
-        if not errors:
-            self.hub_active["red"] = True
-            self.hub_active["blue"] = True
-            return
-        self.hub_active["red"] = False
-        self.hub_active["blue"] = False
-        self.last_message = f"error starting hubs: {errors[0]}"
+        now = time.time()
+        self._start_hub("red", now)
+        self._start_hub("blue", now)
 
     def _stop_both_hubs(self):
-        errors = self._run_parallel([
-            (self.nplc.stop_hub_counting, "red"),
-            (self.nplc.stop_hub_counting, "blue"),
-        ])
-        if not errors:
-            self.hub_active["red"] = False
-            self.hub_active["blue"] = False
-            return
-        self.last_message = f"error stopping hubs: {errors[0]}"
+        now = time.time()
+        self._stop_hub("red", now)
+        self._stop_hub("blue", now)
 
     def _reset_hubs(self):
-        try:
-            errors = self._run_parallel([
-                (self.nplc.reset_hub_count, "red"),
-                (self.nplc.reset_hub_count, "blue"),
-            ])
-            if errors:
-                raise errors[0]
-            self.hub_active = {"red": False, "blue": False}
-            self.hub_lights_on = {"red": False, "blue": False}
-            self.stop_at = {"red": None, "blue": None}
-        except RuntimeError as exc:
-            self.last_message = f"error resetting hubs: {exc}"
-        except Exception as exc:
-            self.last_message = f"error resetting hubs: {exc}"
+        now = time.time()
+        self.hub_active = {"red": False, "blue": False}
+        self.hub_lights_on = {"red": False, "blue": False}
+        self.stop_at = {"red": None, "blue": None}
+        self._dispatch_hub_command("red", "resetting", self.nplc.reset_hub_count, now)
+        self._dispatch_hub_command("blue", "resetting", self.nplc.reset_hub_count, now)
 
     def _set_hub_lights(self, hub, on, now):
         if not self.light_control_supported[hub]:
             return
         if self.hub_lights_on[hub] == on:
             return
-        if not self._command_ready(hub, now):
-            return
-        try:
-            if on:
-                self.nplc.turn_hub_lights_on(hub)
-            else:
-                self.nplc.turn_hub_lights_off(hub)
+        fn = self.nplc.turn_hub_lights_on if on else self.nplc.turn_hub_lights_off
+
+        def _light_success():
             self.hub_lights_on[hub] = on
-        except RuntimeError as exc:
+
+        def _light_failure(exc, failure_now):
             self.light_control_supported[hub] = False
-            self._mark_command_failure(hub, "setting lights for", exc, now)
+            self._mark_command_failure(hub, "setting lights for", exc, failure_now)
             self.last_message = f"warning: {hub} lights endpoint unavailable: {exc}"
 
+        self._dispatch_hub_command(
+            hub,
+            "setting lights for",
+            fn,
+            now,
+            on_success=_light_success,
+            on_failure=_light_failure,
+        )
+
     def _set_both_lights(self, on, force=False):
-        targets = []
+        now = time.time()
         for hub in ("red", "blue"):
-            if not force and not self.light_control_supported[hub]:
-                continue
-            if not force and self.hub_lights_on[hub] == on:
-                continue
-            fn = self.nplc.turn_hub_lights_on if on else self.nplc.turn_hub_lights_off
-            targets.append((hub, fn))
-
-        if not targets:
-            return
-
-        errors = self._run_parallel([(fn, hub) for hub, fn in targets])
-        if not errors:
-            for hub, _ in targets:
-                self.hub_lights_on[hub] = on
-            return
-
-        for hub, _ in targets:
-            self.light_control_supported[hub] = False
-        self.last_message = f"warning: lights endpoint unavailable: {errors[0]}"
+            if force:
+                self.hub_lights_on[hub] = not on
+            self._set_hub_lights(hub, on, now)
 
     def _schedule_stop(self, hub, now):
         if self.hub_active[hub] and self.stop_at[hub] is None:
