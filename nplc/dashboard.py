@@ -25,6 +25,8 @@ def _safe_int(value, default=0):
 class Dashboard:
     def __init__(self, red_url, blue_url, rate_hz, timeout_sec):
         self.nplc = NPLC(red_url, blue_url, timeout_sec=timeout_sec)
+        self.command_timeout_s = max(float(timeout_sec), 0.1)
+        self.command_retry_backoff_s = max(self.command_timeout_s, 1.0)
         self.sleep_s = 1.0 / max(rate_hz, 0.1)
         self.status_poll_sleep_s = 1.0 / STATUS_POLL_MAX_HZ
         self.timeline = self._build_timeline()
@@ -40,6 +42,7 @@ class Dashboard:
         self.hub_lights_on = {"red": False, "blue": False}
         self.light_control_supported = {"red": True, "blue": True}
         self.stop_at = {"red": None, "blue": None}
+        self.command_retry_at = {"red": 0.0, "blue": 0.0}
 
         # Manual offsets applied on top of raw hub counts.
         self.score_adjust = {"red": 0, "blue": 0}
@@ -80,19 +83,36 @@ class Dashboard:
             (160.0, "END GAME", "both"),
         ]
 
-    def _start_hub(self, hub):
+    def _command_ready(self, hub, now):
+        return now >= self.command_retry_at[hub]
+
+    def _mark_command_failure(self, hub, action, exc, now):
+        self.command_retry_at[hub] = now + self.command_retry_backoff_s
+        self.last_message = (
+            f"error {action} {hub}: {exc} "
+            f"(retry after {self.command_retry_backoff_s:.1f}s)"
+        )
+
+    def _start_hub(self, hub, now):
+        if not self._command_ready(hub, now):
+            return
         try:
             self.nplc.start_hub_counting(hub)
             self.hub_active[hub] = True
         except RuntimeError as exc:
-            self.last_message = f"error starting {hub}: {exc}"
+            self._mark_command_failure(hub, "starting", exc, now)
 
-    def _stop_hub(self, hub):
+    def _stop_hub(self, hub, now):
+        if not self._command_ready(hub, now):
+            # Keep local timing correct and avoid repeated stop retries stretching phase transitions.
+            self.hub_active[hub] = False
+            return
         try:
             self.nplc.stop_hub_counting(hub)
             self.hub_active[hub] = False
         except RuntimeError as exc:
-            self.last_message = f"error stopping {hub}: {exc}"
+            self.hub_active[hub] = False
+            self._mark_command_failure(hub, "stopping", exc, now)
 
     def _run_parallel(self, actions):
         if not actions:
@@ -155,10 +175,12 @@ class Dashboard:
         except Exception as exc:
             self.last_message = f"error resetting hubs: {exc}"
 
-    def _set_hub_lights(self, hub, on):
+    def _set_hub_lights(self, hub, on, now):
         if not self.light_control_supported[hub]:
             return
         if self.hub_lights_on[hub] == on:
+            return
+        if not self._command_ready(hub, now):
             return
         try:
             if on:
@@ -168,6 +190,7 @@ class Dashboard:
             self.hub_lights_on[hub] = on
         except RuntimeError as exc:
             self.light_control_supported[hub] = False
+            self._mark_command_failure(hub, "setting lights for", exc, now)
             self.last_message = f"warning: {hub} lights endpoint unavailable: {exc}"
 
     def _set_both_lights(self, on):
@@ -197,17 +220,17 @@ class Dashboard:
         if self.hub_active[hub] and self.stop_at[hub] is None:
             self.stop_at[hub] = now + DEACTIVATION_GRACE_SEC
 
-    def _ensure_active(self, hub):
+    def _ensure_active(self, hub, now):
         if self.stop_at[hub] is not None:
             self.stop_at[hub] = None
         if not self.hub_active[hub]:
-            self._start_hub(hub)
+            self._start_hub(hub, now)
 
     def _update_stops(self, now):
         for hub in ("red", "blue"):
             if self.stop_at[hub] is not None and now >= self.stop_at[hub]:
                 self.stop_at[hub] = None
-                self._stop_hub(hub)
+                self._stop_hub(hub, now)
 
     def _choose_shift1_active(self):
         try:
@@ -385,10 +408,10 @@ class Dashboard:
 
                 for hub in ("red", "blue"):
                     if desired[hub]:
-                        self._ensure_active(hub)
+                        self._ensure_active(hub, now)
                     else:
                         self._schedule_stop(hub, now)
-                    self._set_hub_lights(hub, desired[hub])
+                    self._set_hub_lights(hub, desired[hub], now)
 
                 self._update_stops(now)
                 if elapsed >= self.match_end + DEACTIVATION_GRACE_SEC:
@@ -402,8 +425,8 @@ class Dashboard:
                 phase_left = 0
                 shift_active = "none"
                 self._update_stops(now)
-                self._set_hub_lights("red", False)
-                self._set_hub_lights("blue", False)
+                self._set_hub_lights("red", False, now)
+                self._set_hub_lights("blue", False, now)
 
             red_status = self._get_cached_status("red")
             blue_status = self._get_cached_status("blue")
