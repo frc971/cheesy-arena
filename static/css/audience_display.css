@@ -355,6 +355,7 @@ html {
   flex-direction: column;
   border: 2px solid #333;
   opacity: 0;
+  font-family: Helvetica, Arial, sans-serif;
 }
 .final-score-row {
   display: flex;
@@ -366,10 +367,9 @@ html {
   line-height: 200px;
   border-bottom: 2px solid #333;
   color: #fff;
-  font-family: "FuturaLTBold";
   font-size: 100px;
+  font-weight: bold;
   text-align: center;
-  text-shadow: 0 0 3px #333;
 }
 #leftFinalScore {
   padding-right: 150px;
@@ -384,7 +384,6 @@ html {
   justify-content: center;
   background-color: #fff;
   color: #222;
-  font-family: "FuturaLT";
   font-size: 24px;
 }
 #leftFinalBreakdown {
@@ -438,7 +437,6 @@ html {
 .final-team-number {
   width: 85px;
   color: #fff;
-  font-family: "FuturaLT";
   font-size: 32px;
   line-height: 43px;
   text-align: center;
@@ -503,7 +501,6 @@ html {
   justify-content: space-between;
   align-items: center;
   padding: 0 25px;
-  font-family: "FuturaLT";
   font-size: 28px;
   background-color: #444;
   color: #fff;
