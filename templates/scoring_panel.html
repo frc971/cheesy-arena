@@ -76,6 +76,22 @@ UI for entering realtime scores.
     <button class="dialog-close" autofocus onclick="closeFoulsDialog();" ontouchstart>Close</button>
   </div>
 </dialog>
+
+<dialog id="edit-counter-dialog" onclick="closeEditCounterDialogIfOutside(event);">
+  <div class="dialog-container">
+    <div class="dialog-banner" id="edit-counter-banner">Edit Score</div>
+    <div style="padding: 20px;">
+      <input type="number" id="edit-counter-input"
+        style="font-size: 36pt; width: 100%; text-align: center; margin-bottom: 20px;">
+      <div style="display: flex; gap: 20px; justify-content: center;">
+        <button class="scoring-button" onclick="submitEditCounter();"
+          style="padding: 10px 20px; font-size: 24pt; background-color: var(--green-action); color: white; border-radius: 8px;">Set
+          Value</button>
+      </div>
+    </div>
+    <button class="dialog-close" onclick="closeEditCounterDialog();" ontouchstart>Cancel</button>
+  </div>
+</dialog>
 {{end}}
 
 {{define "head"}}
@@ -109,7 +125,7 @@ UI for entering realtime scores.
   <button class="counter-decrement scoring-button" onclick="handleCounterClick('{{.id}}', -1);" ontouchstart disabled>
     -1
   </button>
-  <div class="counter-status">
+  <div class="counter-status" onclick="handleCounterEdit('{{.id}}');" style="cursor: pointer;">
     {{if .has_auto}}
     <div class="counter-main-clone">Teleop: <span class="counter-value">0</span></div>
     <div class="counter-auto-row">Auto: <span class="counter-auto-value">0</span></div>
@@ -132,7 +148,7 @@ UI for entering realtime scores.
       disabled></button>
     {{end}}
     <svg class="reef-image" viewBox="0 0 120 600">
-      <use xlink:href="#reef-column"/>
+      <use xlink:href="#reef-column" />
     </svg>
   </div>
 </div>

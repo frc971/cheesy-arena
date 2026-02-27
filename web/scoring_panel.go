@@ -7,15 +7,16 @@ package web
 
 import (
 	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"strings"
+
 	"github.com/Team254/cheesy-arena/field"
 	"github.com/Team254/cheesy-arena/game"
 	"github.com/Team254/cheesy-arena/model"
 	"github.com/Team254/cheesy-arena/websocket"
 	"github.com/mitchellh/mapstructure"
-	"io"
-	"log"
-	"net/http"
-	"strings"
 )
 
 type ScoringPosition struct {
@@ -220,6 +221,8 @@ func (web *Web) scoringPanelWebsocketHandler(w http.ResponseWriter, r *http.Requ
 				Current    bool
 				Autonomous bool
 				NearSide   bool
+				IsSet      bool
+				SetValue   int
 			}{}
 			err = mapstructure.Decode(data, &args)
 			if err != nil {
@@ -230,14 +233,26 @@ func (web *Web) scoringPanelWebsocketHandler(w http.ResponseWriter, r *http.Requ
 			// TODO: Add REBUILT-specific scoring commands here
 			switch command {
 			case "activeFuel":
-				score.ActiveFuel = max(0, score.ActiveFuel+args.Adjustment)
+				if args.IsSet {
+					score.ActiveFuel = max(0, args.SetValue)
+				} else {
+					score.ActiveFuel = max(0, score.ActiveFuel+args.Adjustment)
+				}
 				scoreChanged = true
 			case "inactiveFuel":
-				score.InactiveFuel = max(0, score.InactiveFuel+args.Adjustment)
+				if args.IsSet {
+					score.InactiveFuel = max(0, args.SetValue)
+				} else {
+					score.InactiveFuel = max(0, score.InactiveFuel+args.Adjustment)
+				}
 				scoreChanged = true
 			case "autoFuel":
 				if args.Autonomous {
-					score.AutoFuel = max(0, score.AutoFuel+args.Adjustment)
+					if args.IsSet {
+						score.AutoFuel = max(0, args.SetValue)
+					} else {
+						score.AutoFuel = max(0, score.AutoFuel+args.Adjustment)
+					}
 					scoreChanged = true
 				}
 			}

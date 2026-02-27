@@ -53,6 +53,58 @@ const closeFoulsDialogIfOutside = function (event) {
   }
 }
 
+let currentEditCounterId = null;
+const editCounterDialog = $("#edit-counter-dialog")[0];
+
+const handleCounterEdit = function (id) {
+  if (scoringAvailable) {
+    currentEditCounterId = id;
+    let val = 0;
+    let label = "";
+    if (currentRealtimeScore) {
+      let score = alliance === "red" ? currentRealtimeScore.Red.Score : currentRealtimeScore.Blue.Score;
+      if (id === "autoFuel") {
+        val = score.AutoFuel;
+        label = "Auto FUEL";
+      } else if (id === "activeFuel") {
+        val = score.ActiveFuel;
+        label = "Active FUEL";
+      } else if (id === "inactiveFuel") {
+        val = score.InactiveFuel;
+        label = "Inactive FUEL";
+      }
+    }
+    $("#edit-counter-banner").text("Edit " + label);
+    $("#edit-counter-input").val(val);
+    editCounterDialog.showModal();
+  }
+}
+
+const closeEditCounterDialog = function () {
+  editCounterDialog.close();
+  currentEditCounterId = null;
+}
+
+const closeEditCounterDialogIfOutside = function (event) {
+  if (event.target === editCounterDialog) {
+    closeEditCounterDialog();
+  }
+}
+
+const submitEditCounter = function () {
+  const val = parseInt($("#edit-counter-input").val(), 10);
+  if (!isNaN(val) && currentEditCounterId) {
+    websocket.send(currentEditCounterId, {
+      IsSet: true,
+      SetValue: val,
+      Current: true,
+      Autonomous: currentEditCounterId === "autoFuel" ? true : (!inTeleop || editingAuto),
+      NearSide: nearSide
+    });
+    closeEditCounterDialog();
+  }
+}
+
 // Handles a websocket message to update the teams for the current match.
 const handleMatchLoad = function (data) {
   $("#matchName").text(data.Match.LongName);
@@ -85,7 +137,7 @@ const resetFoulCounts = function () {
 const addFoul = function (alliance, isMajor) {
   const foulType = `${alliance}-${isMajor ? "major" : "minor"}`;
   localFoulCounts[foulType] += 1;
-  websocket.send("addFoul", {Alliance: alliance, IsMajor: isMajor});
+  websocket.send("addFoul", { Alliance: alliance, IsMajor: isMajor });
   renderLocalFoulCounts();
 }
 
@@ -222,11 +274,11 @@ const handleAutoClimbClick = function (teamPosition) {
   const currentLevel = currentScore.AutoClimbStatuses[teamPosition - 1];
   const newLevel = currentLevel === 0 ? 1 : 0; // Toggle between None and L1
 
-  websocket.send("autoClimb", {TeamPosition: teamPosition, EndgameStatus: newLevel});
+  websocket.send("autoClimb", { TeamPosition: teamPosition, EndgameStatus: newLevel });
 }
 
 const handleTeleopClimbClick = function (teamPosition, climbLevel) {
-  websocket.send("teleopClimb", {TeamPosition: teamPosition, EndgameStatus: climbLevel});
+  websocket.send("teleopClimb", { TeamPosition: teamPosition, EndgameStatus: climbLevel });
 }
 
 // Sends a websocket message to indicate that the score for this alliance is ready.
