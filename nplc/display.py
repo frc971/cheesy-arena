@@ -32,8 +32,16 @@ def render(red_status, blue_status, message):
 
 def main():
     parser = argparse.ArgumentParser(description="Simple NPLC fuel counter display.")
-    parser.add_argument("--red", required=True, help="Red hub base URL, e.g. http://10.0.0.10:8000")
-    parser.add_argument("--blue", required=True, help="Blue hub base URL, e.g. http://10.0.0.11:8000")
+    parser.add_argument(
+        "--red",
+        default="http://10.0.100.10:5000",
+        help="Red hub base URL (default: http://10.0.100.10:5000)",
+    )
+    parser.add_argument(
+        "--blue",
+        default="http://10.0.100.11:5000",
+        help="Blue hub base URL (default: http://10.0.100.11:5000)",
+    )
     parser.add_argument("--rate", type=float, default=5.0, help="Polling rate in Hz (default: 5)")
     parser.add_argument("--timeout", type=float, default=2.0, help="HTTP timeout in seconds (default: 2)")
     args = parser.parse_args()

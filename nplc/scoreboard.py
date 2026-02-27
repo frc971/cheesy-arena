@@ -133,19 +133,18 @@ async def websocket_endpoint(ws: WebSocket):
 
 
 if __name__ == "__main__":
-    import os
     import uvicorn
 
     parser = argparse.ArgumentParser(description="Audience scoreboard for NPLC dashboard state.")
     parser.add_argument(
         "--dashboard-url",
-        default=os.environ.get("DASHBOARD_URL", "http://127.0.0.1:5001"),
+        default="http://127.0.0.1:5001",
         help="Dashboard base URL (default: %(default)s)",
     )
     parser.add_argument(
         "--port",
         type=int,
-        default=int(os.environ.get("SCOREBOARD_PORT", "5000")),
+        default=5000),
         help="Port for scoreboard web server (default: %(default)s)",
     )
     args = parser.parse_args()

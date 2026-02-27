@@ -18,6 +18,41 @@ NPLC is a two-hub fuel counting and light control system for the FRC game 2026 r
 - `docs/fuel-counter-http-contract.md`: hub HTTP API contract
 - `docs/game-counting-requirements.md`: phase/timing/counting requirements
 
+## Production Quick Start
+
+### For pis:
+
+SSH into each pi:
+* Red: `ssh nvidia@10.0.100.10` password `nvidia`
+* Blue: `ssh nvidia@10.0.100.11` password `nvidia`
+
+Run:
+```
+source venv/bin/activate
+python raspi.py
+```
+
+This should host the counter and light API at port 5000.
+
+### For the FMS/controller PC:
+
+Run the dashboard webpage at `localhost:5001`:
+```
+uv run dashboard.py
+```
+
+Run the scoreboard webpage at `localhost:5000`:
+```
+uv run scoreboard.py
+```
+
+Optional: run the manual CLI controller:
+```
+uv run display.py
+```
+
+They will use `http://10.0.100.10:5000` as the default red port and `http://10.0.100.10:5001` as the default blue port.
+
 ## Local Dev Quick Start
 
 From `nplc/`, open 4 terminals.
