@@ -193,12 +193,12 @@ class Dashboard:
             self._mark_command_failure(hub, "setting lights for", exc, now)
             self.last_message = f"warning: {hub} lights endpoint unavailable: {exc}"
 
-    def _set_both_lights(self, on):
+    def _set_both_lights(self, on, force=False):
         targets = []
         for hub in ("red", "blue"):
-            if not self.light_control_supported[hub]:
+            if not force and not self.light_control_supported[hub]:
                 continue
-            if self.hub_lights_on[hub] == on:
+            if not force and self.hub_lights_on[hub] == on:
                 continue
             fn = self.nplc.turn_hub_lights_on if on else self.nplc.turn_hub_lights_off
             targets.append((hub, fn))
@@ -369,9 +369,11 @@ class Dashboard:
             self.shift1_active = None
             self.start_time = None
             self.paused_elapsed = 0.0
+            self.stop_at = {"red": None, "blue": None}
+            self._stop_both_hubs()
             self.score_adjust = {"red": 0, "blue": 0}
             self._reset_hubs()
-            self._set_both_lights(False)
+            self._set_both_lights(False, force=True)
             self.last_message = "match reset"
 
     def adjust_score(self, hub, delta):
