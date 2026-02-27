@@ -136,17 +136,8 @@ if __name__ == "__main__":
     import uvicorn
 
     parser = argparse.ArgumentParser(description="Audience scoreboard for NPLC dashboard state.")
-    parser.add_argument(
-        "--dashboard-url",
-        default="http://127.0.0.1:5001",
-        help="Dashboard base URL (default: %(default)s)",
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=5000),
-        help="Port for scoreboard web server (default: %(default)s)",
-    )
+    parser.add_argument("--dashboard-url", default="http://127.0.0.1:5001", help="Dashboard base URL")
+    parser.add_argument("--port", type=int, default=5000, help="Port for scoreboard web server")
     args = parser.parse_args()
 
     dashboard_url = args.dashboard_url
