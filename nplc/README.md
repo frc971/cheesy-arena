@@ -131,3 +131,6 @@ python raspi.py
 
 - Hub contract is in `docs/fuel-counter-http-contract.md`.
 - `display.py` is an older manual CLI control tool and is optional.
+
+
+https://chatgpt.com/share/69a27ed7-0788-8007-9a2e-2cff3e9618de

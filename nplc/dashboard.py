@@ -336,6 +336,10 @@ class Dashboard:
             self.stop_at = {"red": None, "blue": None}
             self._stop_both_hubs()
             self.score_adjust = {"red": 0, "blue": 0}
+            # Zero local cached counts immediately so API/scoreboard reflects reset
+            # without waiting for asynchronous hub status polling.
+            self._set_cached_status("red", {"count": 0, "state": "stopped"})
+            self._set_cached_status("blue", {"count": 0, "state": "stopped"})
             self._reset_hubs()
             self._set_both_lights(False, force=True)
             self.last_message = "match reset"
