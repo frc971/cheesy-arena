@@ -12,6 +12,7 @@ import uvicorn
 from nplc import NPLC
 
 DEACTIVATION_GRACE_SEC = 3.0
+AUTO_ZERO_HOLD_SEC = 3.0
 STATUS_POLL_MAX_HZ = 10.0
 
 
@@ -31,7 +32,8 @@ class Dashboard:
         self.status_poll_sleep_s = 1.0 / STATUS_POLL_MAX_HZ
         self.command_executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
         self.timeline = self._build_timeline()
-        self.match_end = self.timeline[-1][0]
+        self.auto_end = self.timeline[0][0]
+        self.match_end = self.timeline[-1][0] + AUTO_ZERO_HOLD_SEC
 
         self.running = False
         self.start_time = None
@@ -221,18 +223,30 @@ class Dashboard:
             return self.shift1_active
         return "blue" if self.shift1_active == "red" else "red"
 
+    def _in_auto_zero_hold(self, elapsed):
+        return self.auto_end <= elapsed < (self.auto_end + AUTO_ZERO_HOLD_SEC)
+
+    def _timeline_elapsed(self, elapsed):
+        if elapsed <= self.auto_end:
+            return elapsed
+        return elapsed - AUTO_ZERO_HOLD_SEC
+
     def _desired_state(self, elapsed):
+        if self._in_auto_zero_hold(elapsed):
+            return {"red": True, "blue": True}, "AUTO", 0.0, "both"
+
+        timeline_elapsed = self._timeline_elapsed(elapsed)
         for idx, (end, phase, mode) in enumerate(self.timeline):
-            if elapsed < end:
+            if timeline_elapsed < end:
                 if mode == "both":
-                    return {"red": True, "blue": True}, phase, end - elapsed, "both"
+                    return {"red": True, "blue": True}, phase, end - timeline_elapsed, "both"
                 if self.shift1_active is None:
                     self.shift1_active = self._choose_shift1_active()
                 active = self._active_for_shift(idx - 1)
                 return (
                     {"red": active == "red", "blue": active == "blue"},
                     phase,
-                    end - elapsed,
+                    end - timeline_elapsed,
                     active,
                 )
         return {"red": False, "blue": False}, "POST", 0, "none"
@@ -269,21 +283,27 @@ class Dashboard:
         shift_active = "none"
 
         if running:
-            for idx, (end, phase_name, mode) in enumerate(self.timeline):
-                if elapsed < end:
-                    phase = phase_name
-                    phase_left = max(0.0, end - elapsed)
-                    if mode == "both":
-                        shift_active = "both"
-                    elif self.shift1_active is None:
-                        shift_active = "pending"
-                    else:
-                        shift_active = self._active_for_shift(idx - 1)
-                    break
-            else:
-                phase = "POST"
+            if self._in_auto_zero_hold(elapsed):
+                phase = "AUTO"
                 phase_left = 0.0
-                shift_active = "none"
+                shift_active = "both"
+            else:
+                timeline_elapsed = self._timeline_elapsed(elapsed)
+                for idx, (end, phase_name, mode) in enumerate(self.timeline):
+                    if timeline_elapsed < end:
+                        phase = phase_name
+                        phase_left = max(0.0, end - timeline_elapsed)
+                        if mode == "both":
+                            shift_active = "both"
+                        elif self.shift1_active is None:
+                            shift_active = "pending"
+                        else:
+                            shift_active = self._active_for_shift(idx - 1)
+                        break
+                else:
+                    phase = "POST"
+                    phase_left = 0.0
+                    shift_active = "none"
 
         return {
             "running": running,
